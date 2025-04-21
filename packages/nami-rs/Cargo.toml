@@ -1,0 +1,16 @@
+[package]
+name = "nami-rs"
+version = "0.0.1"
+edition = { workspace = true }
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+cosmwasm-schema = { workspace = true }
+cw-utils = { workspace = true }
+cosmwasm-std = { workspace = true }
+anybuf = { workspace = true }
+thiserror = { workspace = true }
+prost = { workspace = true }
+regex = { workspace = true }
+rujira-rs = { workspace = true}
