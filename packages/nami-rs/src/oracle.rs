@@ -1,5 +1,5 @@
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{QuerierWrapper, Decimal};
+use cosmwasm_std::{Decimal, QuerierWrapper};
 use rujira_rs::{Layer1Asset, Oracle, OracleError};
 
 #[cw_serde]
@@ -10,7 +10,7 @@ pub enum OracleConfig {
 impl Oracle for OracleConfig {
     fn price(&self, q: QuerierWrapper) -> Result<Decimal, OracleError> {
         match self {
-            OracleConfig::Layer1(asset) => asset.price(q)
+            OracleConfig::Layer1(asset) => asset.price(q),
         }
     }
 }

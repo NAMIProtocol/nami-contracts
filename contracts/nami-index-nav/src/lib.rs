@@ -7,3 +7,6 @@ mod fee_collector;
 mod vault;
 
 pub use crate::error::ContractError;
+
+#[cfg(test)]
+pub mod testing;

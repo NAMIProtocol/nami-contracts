@@ -1,6 +1,8 @@
+pub mod affiliate;
 pub mod asset_controller;
-pub mod index_nav;
+pub mod index_entry_adapter;
 pub mod index_fixed;
+pub mod index_nav;
 pub mod stable_swap;
 pub mod template;
 pub mod variant_vault;

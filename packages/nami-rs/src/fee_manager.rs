@@ -59,7 +59,7 @@ impl FeeManager {
             .saturating_sub(self.last_accrual_time.seconds());
 
         if elapsed == 0 {
-            return Err(FeeManagerError::NoElapsedTime {});
+            return Ok(Uint128::zero());
         }
 
         const SECS_PER_YEAR: u64 = 31_557_600;
@@ -125,9 +125,6 @@ pub enum FeeManagerError {
 
     #[error("RateNotConfigured")]
     RateNotConfigured {},
-
-    #[error("NoElapsedTime")]
-    NoElapsedTime {},
 }
 
 #[cfg(test)]
@@ -157,11 +154,8 @@ mod tests {
     fn aum_fee_zero_elapsed() {
         let now = Timestamp::from_seconds(5_000);
         let mut mgr = FeeManager::new(make_rates(10, 20, 1), now).unwrap();
-        let res = mgr.aum_fee(now, Uint128::from(1_000u128));
-        match res {
-            Err(FeeManagerError::NoElapsedTime {}) => {}
-            other => panic!("expected NoElapsedTime, got {:?}", other),
-        }
+        let res = mgr.aum_fee(now, Uint128::from(1_000u128)).unwrap();
+        assert_eq!(res, Uint128::zero());
     }
 
     #[test]

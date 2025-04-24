@@ -1,9 +1,12 @@
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{
     coins, ensure, to_json_binary, Addr, Coin, CosmosMsg, Decimal, Fraction, OverflowError,
-    OverflowOperation, QuerierWrapper, Uint128, WasmMsg, StdError,
+    OverflowOperation, QuerierWrapper, StdError, Uint128, WasmMsg,
 };
-use rujira_rs::{Oracle, fin::{self, SwapRequest}};
+use rujira_rs::{
+    fin::{self, SwapRequest},
+    Oracle,
+};
 
 use crate::ContractError;
 
@@ -16,12 +19,7 @@ pub struct AssetAllocation<T: Oracle> {
 }
 
 impl<T: Oracle> AssetAllocation<T> {
-    pub fn new(
-        denom: String,
-        weight: Decimal,
-        swap_contract: Option<Addr>,
-        oracle: T,
-    ) -> Self {
+    pub fn new(denom: String, weight: Decimal, swap_contract: Option<Addr>, oracle: T) -> Self {
         Self {
             denom,
             weight,
@@ -109,7 +107,7 @@ impl<T: Oracle> AssetAllocation<T> {
                         }))?,
                         funds,
                     }
-                        .into(),
+                    .into(),
                 );
             }
         }
@@ -144,7 +142,7 @@ impl<T: Oracle> AssetAllocation<T> {
             }))?,
             funds: coins(sell_amt.u128(), &self.denom),
         }
-            .into())
+        .into())
     }
 }
 
@@ -168,8 +166,7 @@ mod tests {
         }
     }
 
-    fn setup_deps() -> OwnedDeps<MockStorage, MockApi, MockQuerier>
-    {
+    fn setup_deps() -> OwnedDeps<MockStorage, MockApi, MockQuerier> {
         let balances: &[(&str, &[Coin])] = &[(
             "contract",
             &[
@@ -179,8 +176,7 @@ mod tests {
             ],
         )];
 
-        let querier =
-            MockQuerier::new(&[("contract", &balances[0].1)]);
+        let querier = MockQuerier::new(&[("contract", &balances[0].1)]);
 
         OwnedDeps {
             storage: MockStorage::new(),
@@ -276,14 +272,21 @@ mod tests {
         let base_balance = Uint128::new(1_000_000);
 
         let msg = allocation
-            .rebalance_msg(&address, &querier, total_value, &base_allocation, base_balance)
+            .rebalance_msg(
+                &address,
+                &querier,
+                total_value,
+                &base_allocation,
+                base_balance,
+            )
             .unwrap()
             .unwrap();
         if let CosmosMsg::Wasm(WasmMsg::Execute {
-                                   contract_addr,
-                                   msg,
-                                   funds,
-                               }) = msg {
+            contract_addr,
+            msg,
+            funds,
+        }) = msg
+        {
             assert_eq!(contract_addr, "btc_swap_contract");
             assert_eq!(funds, vec![Coin::new(5u128, "btc")]);
             let swap_msg: ExecuteMsg = cosmwasm_std::from_json(&msg).unwrap();
@@ -320,14 +323,21 @@ mod tests {
         let base_balance = Uint128::new(1_000_000);
 
         let msg = allocation
-            .rebalance_msg(&address, &querier, total_value, &base_allocation, base_balance)
+            .rebalance_msg(
+                &address,
+                &querier,
+                total_value,
+                &base_allocation,
+                base_balance,
+            )
             .unwrap()
             .unwrap();
         if let CosmosMsg::Wasm(WasmMsg::Execute {
-                                   contract_addr,
-                                   msg,
-                                   funds,
-                               }) = msg {
+            contract_addr,
+            msg,
+            funds,
+        }) = msg
+        {
             assert_eq!(contract_addr, "eth_swap_contract");
             assert_eq!(funds, vec![Coin::new(460_000u128, "usdc.ETH")]);
             let swap_msg: ExecuteMsg = cosmwasm_std::from_json(&msg).unwrap();
@@ -364,7 +374,13 @@ mod tests {
         let base_balance = Uint128::new(1_000_000);
 
         let msg = allocation
-            .rebalance_msg(&address, &querier, total_value, &base_allocation, base_balance)
+            .rebalance_msg(
+                &address,
+                &querier,
+                total_value,
+                &base_allocation,
+                base_balance,
+            )
             .unwrap();
         assert_eq!(msg, None);
     }
@@ -390,7 +406,13 @@ mod tests {
         let base_balance = Uint128::new(1_000_000);
 
         let msg = allocation
-            .rebalance_msg(&address, &querier, total_value, &base_allocation, base_balance)
+            .rebalance_msg(
+                &address,
+                &querier,
+                total_value,
+                &base_allocation,
+                base_balance,
+            )
             .unwrap();
         assert_eq!(msg, None);
     }
@@ -413,10 +435,11 @@ mod tests {
             .swap_msg(&address, amount, &sender, &querier)
             .unwrap();
         if let CosmosMsg::Wasm(WasmMsg::Execute {
-                                   contract_addr,
-                                   msg,
-                                   funds,
-                               }) = msg {
+            contract_addr,
+            msg,
+            funds,
+        }) = msg
+        {
             assert_eq!(contract_addr, "btc_swap_contract");
             assert_eq!(funds, vec![Coin::new(2u128, "btc")]);
             let swap_msg: ExecuteMsg = cosmwasm_std::from_json(&msg).unwrap();
@@ -474,9 +497,10 @@ mod tests {
             .unwrap_err();
         match err {
             ContractError::Std(StdError::GenericErr { msg, .. })
-            if msg.contains("Option::unwrap()") => {}
+                if msg.contains("Option::unwrap()") => {}
             _ => panic!(
-                "Expected ContractError::Std with 'Option::unwrap()', got {:?}", err
+                "Expected ContractError::Std with 'Option::unwrap()', got {:?}",
+                err
             ),
         }
     }
@@ -538,7 +562,13 @@ mod tests {
         let base_balance = Uint128::new(1_000);
 
         let msg = allocation
-            .rebalance_msg(&address, &querier, total_value, &base_allocation, base_balance)
+            .rebalance_msg(
+                &address,
+                &querier,
+                total_value,
+                &base_allocation,
+                base_balance,
+            )
             .unwrap();
         assert_eq!(msg, None, "No action with zero price");
     }
@@ -555,6 +585,10 @@ mod tests {
         let address = Addr::unchecked("invalid");
         let querier = QuerierWrapper::new(&deps.querier);
         let result = allocation.quote(&address, &querier);
-        assert_eq!(result.unwrap().0, Uint128::zero(), "Invalid address returns zero balance");
+        assert_eq!(
+            result.unwrap().0,
+            Uint128::zero(),
+            "Invalid address returns zero balance"
+        );
     }
 }

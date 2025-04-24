@@ -34,7 +34,11 @@ impl Vault {
                 total_value += alloc.value(&self.address, querier)?;
             }
         }
-        let nav = total_value.checked_div(Decimal::from_ratio(shares, Uint128::one()))?;
+        let nav = if shares.is_zero() {
+            Decimal::one()
+        } else {
+            total_value.checked_div(Decimal::from_ratio(shares, Uint128::one()))?
+        };
         Ok(nav)
     }
 
