@@ -1,5 +1,5 @@
 [workspace]
-members = ["packages/*", "contracts/*"]
+members = ["packages/*", "contracts/*", "testing/*"]
 
 # Resolver has to be set explicitely in workspaces, see https://github.com/rust-lang/cargo/issues/9956
 resolver = "2"
@@ -23,11 +23,18 @@ thiserror = { version = "1.0.58" }
 rujira-rs = { path = "./packages/rujira-rs" }
 nami-rs = { path = "./packages/nami-rs" }
 rujira-rs-testing = { path = "./packages/rujira-rs-testing" }
-rujira-ghost-vault = { path = "./contracts/rujira-ghost-vault" }
+rujira-ghost-vault = { path = "./testing/rujira-ghost-vault" }
+rujira-bow = { path = "./testing/rujira-bow" }
+rujira-fin = { path = "./testing/rujira-fin" }
 nami-asset-controller = { path = "./contracts/nami-asset-controller" }
 nami-stable-swap = { path = "./contracts/nami-stable-swap" }
 nami-variant-vault = { path = "./contracts/nami-variant-vault" }
 nami-ghost-adapter = { path = "./contracts/nami-ghost-adapter" }
+nami-rs-testing = { path = "./packages/nami-rs-testing" }
+nami-index-nav = { path = "./contracts/nami-index-nav" }
+nami-index-fixed = { path = "./contracts/nami-index-fixed" }
+nami-index-entry-adapter = { path = "./contracts/nami-index-entry-adapter" }
+nami-affiliate = { path = "./contracts/nami-affiliate" }
 anyhow = "1"
 prost = "0.13"
 regex = "1.11.1"
@@ -37,6 +44,7 @@ cosmwasm-schema-derive = "2.1.3"
 cosmos-sdk-proto = { version = "0.26.1", default-features = false, features = [
     "cosmwasm",
 ] }
+proptest = "1.6.0"
 
 [profile.release]
 rpath = false

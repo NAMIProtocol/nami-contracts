@@ -1,6 +1,6 @@
-use cosmwasm_std::{Decimal, Event};
+use cosmwasm_std::Event;
 
-pub fn execute_event(contract_addr: String, affiliate: Option<(String, Decimal)>) -> Event {
+pub fn execute_event(contract_addr: String, affiliate: Option<(String, u16)>) -> Event {
     let mut event =
         Event::new("nami-affiliate-execute").add_attribute("contract_addr", contract_addr);
     if let Some((addr, bps)) = affiliate {

@@ -1,7 +1,7 @@
 # nami-index-nav
 
 ### Technical Overview
-`nami-index-nav` is a CosmWasm contract implementing a net asset value (NAV)-based index strategy. Each receipt token represents a proportional claim on the total value of the fund. Deposits and withdrawals are made in `base_denom` (e.g., USDC), and the fund's NAV is determined using external price feeds. Rebalancing is permissionless and triggered via the `Run` entry point.
+`nami-index-nav` is a CosmWasm contract implementing a net asset value (NAV)-based index strategy. Each receipt token represents a proportional claim on the total value of the fund. Deposits and withdrawals are made in `quote_denom` (e.g., USDC), and the fund's NAV is determined using external price feeds. Rebalancing is permissionless and triggered via the `Run` entry point.
 
 ---
 
@@ -15,7 +15,7 @@
 ### Execute
 
 #### `ExecuteMsg::Deposit {}`
-- Requires exact payment in the configured `base_denom`.
+- Requires exact payment in the configured `quote_denom`.
 - Computes current NAV using price feeds.
 - Mints receipt tokens proportional to the deposited amount.
 - Mints AUM fee tokens to the fee collector.
@@ -26,7 +26,7 @@
 - Applies the exit fee and calculates the net share.
 - Computes NAV to determine the withdrawal amount.
 - Withdraws fund assets based on current portfolio allocation.
-- Swaps the assets to `base_denom`.
+- Swaps the assets to `quote_denom`.
 - Sends tokens to the user.
 - Mints AUM and exit fee tokens to the fee collector.
 - Emits a `withdraw` event.

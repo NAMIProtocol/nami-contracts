@@ -67,12 +67,45 @@ fn mock_pool_usdc() -> Binary {
     buf.into()
 }
 
+fn mock_pool_eth() -> Binary {
+    let pool = proto::types::QueryPoolResponse {
+        asset: "ETH.ETH".to_string(),
+        short_code: "e".to_string(),
+        status: "Available".to_string(),
+        decimals: 6,
+        pending_inbound_asset: "1000000".to_string(),
+        pending_inbound_rune: "0".to_string(),
+        balance_asset: "5000000000".to_string(),
+        balance_rune: "100000000000000".to_string(),
+        asset_tor_price: "250000000000".to_string(),
+        pool_units: "750000000000000".to_string(),
+        lp_units: "500000000000000".to_string(),
+        synth_units: "250000000000000".to_string(),
+        synth_supply: "1000000000".to_string(),
+        savers_depth: "500000000".to_string(),
+        savers_units: "450000000000000".to_string(),
+        savers_fill_bps: "9000".to_string(),
+        savers_capacity_remaining: "1000000000".to_string(),
+        synth_mint_paused: false,
+        synth_supply_remaining: "2000000000".to_string(),
+        loan_collateral: "0".to_string(),
+        loan_collateral_remaining: "0".to_string(),
+        loan_cr: "0".to_string(),
+        derived_depth_bps: "9500".to_string(),
+    };
+
+    let mut buf = Vec::new();
+    pool.encode(&mut buf).unwrap();
+    buf.into()
+}
+
 pub fn mock_pool(request: Binary) -> Result<Binary, Error> {
     let req = proto::types::QueryPoolRequest::decode(request.as_slice()).unwrap();
 
     match req.asset.as_str() {
         "BTC.BTC" => Ok(mock_pool_btc()),
         "ETH.USDC-0XA0B86991C6218B36C1D19D4A2E9EB0CE3606EB48" => Ok(mock_pool_usdc()),
+        "ETH.ETH" => Ok(mock_pool_eth()),
         _ => Err(StdError::generic_err("Asset not found").into()),
     }
 }

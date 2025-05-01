@@ -1,30 +1,64 @@
 use cosmwasm_schema::{cw_serde, QueryResponses};
-use cosmwasm_std::Decimal;
+use cosmwasm_std::{Decimal, Uint128};
 use rujira_rs::TokenMetadata;
 
-use crate::{FeeRates, OracleConfig};
+use crate::{AssetAllocation, FeeManager, FeeRates, OracleConfig};
 
 #[cw_serde]
 pub struct InstantiateMsg {
     pub receipt: TokenMetadata,
-    pub base_denom: String,
+    pub quote_denom: String,
     pub fee_collector: String,
     pub fees: FeeRates,
-    pub target_denoms: Vec<(String, Decimal, String, OracleConfig)>,
+    pub target_allocation: Vec<AssetAllocation<OracleConfig>>,
 }
 
 #[cw_serde]
 pub enum ExecuteMsg {
     Deposit {},
-    Withdraw {},
+    Withdraw { slippage: Option<Decimal> },
     Run {},
 }
 
 #[cw_serde]
 pub enum SudoMsg {
-    // all the configuration must be in the sudo message, like set fees change index composition etc
+    UpdateFees {
+        fee_collector: Option<String>,
+        fees: FeeRates,
+    },
+    AddAllocation {
+        denom: String,
+        weight: Decimal,
+        contract: Option<String>,
+        oracle: OracleConfig,
+        threshold: Decimal,
+    },
+    RemoveAllocation {
+        denom: String,
+    },
 }
 
 #[cw_serde]
 #[derive(QueryResponses)]
-pub enum QueryMsg {}
+pub enum QueryMsg {
+    #[returns(ConfigResponse)]
+    Config {},
+    #[returns(FeeManager)]
+    Fees {},
+    #[returns(VaultStatusResponse)]
+    Status {},
+}
+
+#[cw_serde]
+pub struct ConfigResponse {
+    pub quote_denom: String,
+    pub fee_collector: String,
+}
+
+#[cw_serde]
+pub struct VaultStatusResponse {
+    pub nav: Decimal,
+    pub shares: Uint128,
+    pub total_value: Uint128,
+    pub allocation: Vec<(String, Uint128, Decimal, Decimal)>,
+}

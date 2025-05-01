@@ -1,0 +1,6 @@
+[alias]
+coverage = "tarpaulin -o Lcov"
+coverage-index = "tarpaulin -o Lcov --workspace --exclude rujira-rs --exclude rujira-bow --exclude rujira-rs-testing --exclude testing --exclude nami-stable-swap --exclude nami-ghost-adapter --exclude nami-variant-vault --exclude nami-template --exclude rujira-fin  --exclude rujira-ghost-vault --exclude-files packages/rujira-rs/* --exclude-files packages/rujira-rs-testing/* --exclude-files testing/* --exclude-files contracts/nami-template/* --exclude-files contracts/nami-variant-vault/* --exclude-files contracts/nami-ghost-adapter/* --exclude-files contracts/nami-asset-controller/* --exclude-files contracts/nami-stable-swap/* --exclude-files packages/nami-rs-testing/*"
+unit-test = "test --lib"
+schema = "run --bin schema"
+integration-test = "test --lib integration_tests"

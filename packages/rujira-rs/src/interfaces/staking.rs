@@ -1,5 +1,5 @@
 use cosmwasm_schema::{cw_serde, QueryResponses};
-use cosmwasm_std::{Binary, Uint128};
+use cosmwasm_std::{Binary, Decimal, Uint128};
 
 use crate::TokenMetadata;
 
@@ -12,6 +12,7 @@ pub struct InstantiateMsg {
     ///
     /// `(contract_address, execute_msg, threshold_limit)`
     pub revenue_converter: (String, Binary, Uint128),
+    pub fee: Option<(Decimal, String)>,
 }
 
 #[cw_serde]
@@ -69,6 +70,7 @@ pub struct ConfigResponse {
     pub bond_denom: String,
     pub revenue_denom: String,
     pub revenue_converter: (String, Binary, Uint128),
+    pub fee: Option<(Decimal, String)>,
 }
 
 #[cw_serde]
@@ -77,7 +79,7 @@ pub struct StatusResponse {
     pub account_bond: Uint128,
 
     /// The total amount of [InstantiateMsg::revenue_denom] available for Account staking to claim
-    pub account_revenue: Uint128,
+    pub assigned_revenue: Uint128,
 
     /// The total shares issued for the liquid bonded tokens
     pub liquid_bond_shares: Uint128,
@@ -86,7 +88,7 @@ pub struct StatusResponse {
     pub liquid_bond_size: Uint128,
 
     /// The amount of [InstantiateMsg::revenue_denom] pending distribution
-    pub pending_revenue: Uint128,
+    pub undistributed_revenue: Uint128,
 }
 
 #[cw_serde]

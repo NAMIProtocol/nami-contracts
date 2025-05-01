@@ -26,8 +26,21 @@ pub enum ContractError {
     #[error("InsufficientFunds")]
     InsufficientFunds {},
 
+    #[error("Missing denomination in deposit: {0}")]
+    MissingDenomination(String),
+
+    #[error("Deposit proportions must be identical")]
+    DepositProportionsNotIdentical,
+
     #[error("Invalid: {0}")]
     Invalid(String),
-    // Add any other custom errors you like here.
-    // Look at https://docs.rs/thiserror/1.0.21/thiserror/ for details.
+
+    #[error("Weight must be zero to remove allocation")]
+    WeightNotZero,
+
+    #[error("Invalid weight must be greater than current weight")]
+    InvalidWeight,
+
+    #[error("Invalid quote denom")]
+    InvalidQuoteDenom,
 }

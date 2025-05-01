@@ -1,4 +1,4 @@
-use cosmwasm_std::{CheckedFromRatioError, OverflowError, StdError};
+use cosmwasm_std::{CheckedFromRatioError, DivideByZeroError, OverflowError, StdError};
 use cw_utils::PaymentError;
 use thiserror::Error;
 
@@ -16,6 +16,9 @@ pub enum ContractError {
     #[error("{0}")]
     OverflowError(#[from] OverflowError),
 
+    #[error("{0}")]
+    DivideByZero(#[from] DivideByZeroError),
+
     #[error("Unauthorized")]
     Unauthorized {},
 
@@ -24,6 +27,9 @@ pub enum ContractError {
 
     #[error("Affiliate call not allowed")]
     InvalidAffiliateCall {},
+
+    #[error("Invalid affiliate fee > 100%")]
+    InvalidAffiliateFee {},
 
     #[error("Invalid: {0}")]
     Invalid(String),

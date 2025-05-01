@@ -3,7 +3,7 @@ use cosmwasm_std::{Addr, Uint128};
 
 #[cw_serde]
 pub struct InstantiateMsg {
-    pub base_denom: String,
+    pub quote_denom: String,
     pub swap_contracts: Vec<(String, String)>,
 }
 
@@ -24,7 +24,6 @@ pub enum ExecuteMsg {
 pub enum SudoMsg {
     AddSwapContract { denom: String, contract: String },
     RemoveSwapContract { denom: String },
-    UpdateConfig { base_denom: String },
 }
 
 #[cw_serde]
@@ -64,7 +63,7 @@ pub struct SwapEntry {
 
 #[cw_serde]
 pub struct ConfigResponse {
-    pub base_denom: String,
+    pub quote_denom: String,
 }
 
 #[cw_serde]

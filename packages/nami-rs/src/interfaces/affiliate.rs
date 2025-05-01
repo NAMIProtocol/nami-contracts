@@ -1,5 +1,5 @@
 use cosmwasm_schema::{cw_serde, QueryResponses};
-use cosmwasm_std::{Binary, Decimal};
+use cosmwasm_std::Binary;
 
 #[cw_serde]
 pub struct InstantiateMsg {}
@@ -9,7 +9,7 @@ pub enum ExecuteMsg {
     Execute {
         contract_addr: String,
         msg: Binary,
-        affiliate: Option<(String, Decimal)>,
+        affiliate: Option<(String, u16)>,
     },
     Send {
         sender: String,

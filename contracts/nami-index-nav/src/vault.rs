@@ -1,138 +1,254 @@
-use crate::{asset_allocation::AssetAllocation, config::Config, ContractError};
-use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{coins, Addr, BankMsg, CosmosMsg, Decimal, Env, QuerierWrapper, Uint128};
-use nami_rs::OracleConfig;
+use crate::ContractError;
+use cosmwasm_std::{
+    coins, ensure, Addr, Api, BankMsg, CosmosMsg, Decimal, Order, QuerierWrapper, Storage, Uint128,
+};
+use cw_storage_plus::Map;
+use nami_rs::asset_allocation::AssetAllocation;
+use nami_rs::{index_nav::VaultStatusResponse, OracleConfig};
+use rujira_rs::{fin, Oracle};
 
-#[cw_serde]
-pub struct Vault {
+static ALLOCATIONS: Map<&str, AssetAllocation<OracleConfig>> = Map::new("allocation");
+
+pub struct Vault<'a> {
+    pub api: &'a dyn Api,
+    pub querier: &'a QuerierWrapper<'a>,
     pub address: Addr,
-    pub allocations: Vec<AssetAllocation<OracleConfig>>,
+    pub quote_denom: String,
 }
 
-impl Vault {
-    pub fn new(env: &Env, config: &Config) -> Result<Self, ContractError> {
-        Ok(Vault {
-            address: env.contract.address.clone(),
-            allocations: config.allocations.clone(),
-        })
+impl<'a> Vault<'a> {
+    pub fn new(
+        api: &'a dyn Api,
+        querier: &'a QuerierWrapper,
+        address: Addr,
+        quote_denom: String,
+    ) -> Self {
+        Self {
+            api,
+            querier,
+            address,
+            quote_denom,
+        }
+    }
+
+    pub fn init(
+        &self,
+        storage: &mut dyn Storage,
+        allocations: Vec<AssetAllocation<OracleConfig>>,
+    ) -> Result<(), ContractError> {
+        ensure!(
+            allocations.iter().map(|a| a.weight).sum::<Decimal>() == Decimal::one(),
+            ContractError::WeightOne
+        );
+
+        let quote_count = allocations
+            .iter()
+            .filter(|a| a.swap_contract.is_none())
+            .count();
+        ensure!(quote_count == 1, ContractError::MissingQuoteAllocation);
+
+        allocations
+            .into_iter()
+            .try_for_each(|alloc| self.save_allocation(storage, alloc))?;
+
+        Ok(())
+    }
+    pub fn save_allocation(
+        &self,
+        storage: &mut dyn Storage,
+        allocation: AssetAllocation<OracleConfig>,
+    ) -> Result<(), ContractError> {
+        ensure!(
+            allocation.swap_contract.is_some() || allocation.denom == self.quote_denom,
+            ContractError::InvalidSwapContract
+        );
+        if let Some(ref swap_addr) = allocation.swap_contract {
+            self.api.addr_validate(swap_addr)?;
+            let cfg: fin::ConfigResponse = self
+                .querier
+                .query_wasm_smart(swap_addr, &fin::QueryMsg::Config {})?;
+            ensure!(
+                cfg.denoms.quote() == self.quote_denom,
+                ContractError::InvalidQuoteDenom
+            );
+            allocation.oracle.price(*self.querier)?;
+        }
+        ALLOCATIONS.save(storage, &allocation.denom, &allocation)?;
+        Ok(())
+    }
+
+    pub fn load_allocations(
+        &self,
+        storage: &dyn Storage,
+    ) -> Result<
+        (
+            AssetAllocation<OracleConfig>,
+            Vec<AssetAllocation<OracleConfig>>,
+        ),
+        ContractError,
+    > {
+        let quote = ALLOCATIONS.load(storage, self.quote_denom.as_str())?;
+        let others = ALLOCATIONS
+            .range(storage, None, None, Order::Ascending)
+            .try_fold(Vec::new(), |mut acc, item| -> Result<_, ContractError> {
+                let (_, alloc) = item?;
+                if alloc.denom != self.quote_denom {
+                    acc.push(alloc);
+                }
+                Ok(acc)
+            })?;
+
+        Ok((quote, others))
     }
 
     pub fn nav(
         &self,
-        querier: &QuerierWrapper,
+        storage: &dyn Storage,
         amount: Option<Uint128>,
         shares: Uint128,
     ) -> Result<Decimal, ContractError> {
-        let mut total_value = Decimal::zero();
-        for alloc in &self.allocations {
-            if alloc.swap_contract.is_none() && amount.is_some() {
-                let amount = amount.unwrap();
-                let (balance, price) = alloc.quote(&self.address, querier)?;
-                total_value += Decimal::from_ratio(balance.checked_sub(amount)?, Uint128::one())
-                    .checked_mul(price)?;
-            } else {
-                total_value += alloc.value(&self.address, querier)?;
-            }
+        let (quote, others) = self.load_allocations(storage)?;
+        let (q_bal, q_price, _) = quote.snapshot(&self.address, self.querier)?;
+        let sub = amount.unwrap_or_default();
+        let starting =
+            Decimal::from_ratio(q_bal.checked_sub(sub)?, Uint128::one()).checked_mul(q_price)?;
+        let total =
+            others
+                .iter()
+                .try_fold(starting, |acc, alloc| -> Result<Decimal, ContractError> {
+                    let (_, _, v) = alloc.snapshot(&self.address, self.querier)?;
+                    Ok(acc + v)
+                })?;
+
+        if shares.is_zero() {
+            return Ok(Decimal::one());
         }
-        let nav = if shares.is_zero() {
-            Decimal::one()
-        } else {
-            total_value.checked_div(Decimal::from_ratio(shares, Uint128::one()))?
-        };
-        Ok(nav)
+        let share_ratio = Decimal::from_ratio(shares, Uint128::one());
+        Ok(total.checked_div(share_ratio)?)
     }
 
-    pub fn rebalance(&self, querier: &QuerierWrapper) -> Result<Vec<CosmosMsg>, ContractError> {
-        let mut total_value = Decimal::zero();
-        for alloc in &self.allocations {
-            total_value += alloc.value(&self.address, querier)?;
-        }
-        let base_alloc = self.base();
-        let (base_balance, _) = base_alloc.quote(&self.address, querier)?;
+    pub fn rebalance(&self, storage: &dyn Storage) -> Result<Vec<CosmosMsg>, ContractError> {
+        let (quote, others) = self.load_allocations(storage)?;
+        let quote_snapshot = quote.snapshot(&self.address, self.querier)?;
 
-        let mut msgs = Vec::new();
-        for alloc in self
-            .allocations
-            .iter()
-            .filter(|a| a.swap_contract.is_some())
-        {
-            if let Some(msg) = alloc.rebalance_msg(
-                &self.address,
-                querier,
-                total_value,
-                &base_alloc,
-                base_balance,
-            )? {
-                msgs.push(msg);
-            }
-        }
+        let total = others.iter().try_fold(
+            quote_snapshot.2,
+            |acc, alloc| -> Result<Decimal, ContractError> {
+                Ok(acc + alloc.snapshot(&self.address, self.querier)?.2)
+            },
+        )?;
+
+        let msgs = others
+            .into_iter()
+            .filter_map(|alloc| {
+                alloc
+                    .rebalance_msg(&self.address, self.querier, total, &quote, quote_snapshot)
+                    .transpose() // Result<Option<Msg>, Err> -> Option<Result<Msg,Err>>
+            })
+            .collect::<Result<Vec<_>, _>>()?;
         Ok(msgs)
-    }
-
-    pub fn base(&self) -> AssetAllocation<OracleConfig> {
-        self.allocations
-            .iter()
-            .find(|a| a.swap_contract.is_none())
-            .cloned()
-            .unwrap()
     }
 
     pub fn withdraw(
         &self,
-        querier: &QuerierWrapper,
-        amount: Uint128,
+        storage: &dyn Storage,
+        value: Uint128,
         sender: Addr,
+        slippage: Option<Decimal>,
     ) -> Result<Vec<CosmosMsg>, ContractError> {
-        let base_alloc = self.base();
-        let (base_bal, _) = base_alloc.quote(&self.address, querier)?;
-        let mut msgs = Vec::new();
+        let (quote, others) = self.load_allocations(storage)?;
+        let (quote_bal, quote_price, _) = quote.snapshot(&self.address, self.querier)?;
+        let slip = slippage.unwrap_or_default();
+        let min_amount = Decimal::from_ratio(value, Uint128::one())
+            .checked_mul(slip)
+            .unwrap_or_default()
+            .to_uint_floor();
 
-        let send_base = amount.min(base_bal);
-        msgs.push(
-            BankMsg::Send {
-                amount: coins(send_base.u128(), &base_alloc.denom),
-                to_address: sender.to_string(),
-            }
-            .into(),
-        );
-        let remaining = amount.checked_sub(send_base)?;
-        if remaining.gt(&Uint128::zero()) {
-            msgs.extend(self.pro_rata_withdraw(remaining, querier, sender)?);
+        let amount = Decimal::from_ratio(value, Uint128::one())
+            .checked_div(quote_price)?
+            .to_uint_floor();
+
+        let send_quote = amount.min(quote_bal);
+        let mut msgs = vec![BankMsg::Send {
+            amount: coins(send_quote.u128(), &quote.denom),
+            to_address: sender.to_string(),
         }
+        .into()];
+        let remaining = amount.checked_sub(send_quote)?;
+        if remaining.is_zero() {
+            ensure!(send_quote >= min_amount, ContractError::SlippageExceeded {});
+            return Ok(msgs);
+        }
+
+        let total_weight = others.iter().map(|a| a.weight).sum::<Decimal>();
+        let max_cost = value.checked_sub(min_amount)?;
+
+        let (swap_msgs, _) = others.into_iter().try_fold(
+            (Vec::new(), remaining),
+            |(mut msgs, rem), alloc| -> Result<(Vec<CosmosMsg>, Uint128), ContractError> {
+                let share = alloc.weight.checked_div(total_weight)?;
+                let amt = Decimal::from_ratio(rem, Uint128::one())
+                    .checked_mul(share)?
+                    .to_uint_floor();
+                if amt.is_zero() {
+                    return Ok((msgs, rem));
+                }
+
+                let alloc_max = Decimal::from_ratio(max_cost, Uint128::one())
+                    .checked_mul(share)?
+                    .to_uint_floor();
+                let min_return = (amt > alloc_max).then(|| amt.checked_sub(alloc_max).unwrap());
+
+                msgs.push(alloc.swap_msg(&self.address, amt, &sender, self.querier, min_return)?);
+
+                let rem = rem.checked_sub(amt)?;
+                Ok((msgs, rem))
+            },
+        )?;
+        msgs.extend(swap_msgs);
+
         Ok(msgs)
     }
 
-    fn pro_rata_withdraw(
+    pub fn status(
         &self,
-        amount: Uint128,
-        querier: &QuerierWrapper,
-        sender: Addr,
-    ) -> Result<Vec<CosmosMsg>, ContractError> {
-        let mut msgs = vec![];
-        let mut remaining = amount;
-        let total_weight = self
-            .allocations
-            .iter()
-            .filter(|a| a.swap_contract.is_some())
-            .map(|a| a.weight)
-            .sum();
+        storage: &dyn Storage,
+        shares: Uint128,
+    ) -> Result<VaultStatusResponse, ContractError> {
+        let nav = self.nav(storage, None, shares)?;
+        let total_value = nav
+            .checked_mul(Decimal::from_ratio(shares, Uint128::one()))?
+            .to_uint_floor();
 
-        for alloc in self
-            .allocations
-            .iter()
-            .filter(|a| a.swap_contract.is_some())
-        {
-            let ratio = alloc.weight.checked_div(total_weight)?;
-            let amount = Decimal::from_ratio(remaining, Uint128::one())
-                .checked_mul(ratio)?
-                .to_uint_floor();
-            if amount.is_zero() {
-                continue;
-            }
-            let msg = alloc.swap_msg(&self.address, amount, &sender, querier)?;
-            msgs.push(msg);
-            remaining = remaining.checked_sub(amount)?;
-        }
-        Ok(msgs)
+        let (base, others) = self.load_allocations(storage)?;
+
+        let allocs = others
+            .into_iter()
+            .chain(std::iter::once(base.clone()))
+            .map(
+                |alloc| -> Result<(String, Uint128, Decimal, Decimal), ContractError> {
+                    let (bal, price, _val) = alloc.snapshot(&self.address, self.querier)?;
+                    Ok((alloc.denom, bal, price, alloc.weight))
+                },
+            )
+            .collect::<Result<Vec<_>, _>>()?;
+
+        Ok(VaultStatusResponse {
+            nav,
+            shares,
+            total_value,
+            allocation: allocs,
+        })
+    }
+
+    pub fn remove_allocation(
+        &self,
+        storage: &mut dyn Storage,
+        denom: String,
+    ) -> Result<(), ContractError> {
+        let coin = self.querier.query_balance(&self.address, denom.clone())?;
+        ensure!(coin.amount.is_zero(), ContractError::WeightNotZero);
+        ALLOCATIONS.remove(storage, denom.as_str());
+        Ok(())
     }
 }

@@ -27,3 +27,7 @@ rujira-rs = { workspace = true }
 
 [dev-dependencies]
 cw-multi-test = { workspace = true }
+rujira-rs-testing = { workspace = true }
+rujira-fin = { workspace = true }
+nami-rs-testing = { workspace = true }
+

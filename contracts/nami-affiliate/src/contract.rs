@@ -1,11 +1,10 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    coin, ensure, ensure_eq, to_json_binary, BankMsg, Binary, Decimal, Deps, DepsMut, Env,
-    MessageInfo, Response, Uint128, WasmMsg,
+    coin, ensure, ensure_eq, to_json_binary, BankMsg, Binary, Coin, Deps, DepsMut, Env,
+    MessageInfo, Response, WasmMsg,
 };
 use cw2::set_contract_version;
-use cw_utils::NativeBalance;
 use nami_rs::affiliate::{ExecuteMsg, InstantiateMsg, QueryMsg};
 
 use crate::{error::ContractError, events::execute_event};
@@ -38,49 +37,54 @@ pub fn execute(
             affiliate,
         } => {
             ensure!(!info.funds.is_empty(), ContractError::InsufficientFunds {});
-
-            let (mut net_funds, mut fees) = if let Some(affiliate) = affiliate.as_ref() {
-                let (mut net_funds, mut fees) = (Vec::new(), Vec::new());
-
-                for fund in info.funds.iter() {
-                    let fee = Decimal::from_ratio(fund.amount, Uint128::one())
-                        .checked_mul(affiliate.1)?
-                        .to_uint_floor();
-                    let net = fund.amount.checked_sub(fee)?;
-                    net_funds.push(coin(net.into(), fund.denom.clone()));
-                    fees.push(coin(fee.into(), fund.denom.clone()));
-                }
-
-                (NativeBalance(net_funds), NativeBalance(fees))
-            } else {
-                (NativeBalance(info.funds.clone()), NativeBalance(Vec::new()))
-            };
-            net_funds.normalize();
-            fees.normalize();
-
+            let mut net_funds = info.funds.clone();
             let mut response =
                 Response::new().add_event(execute_event(contract_addr.clone(), affiliate.clone()));
 
-            if fees.0.len() > 0 {
-                response = response.add_message(BankMsg::Send {
-                    to_address: affiliate.unwrap().0,
-                    amount: fees.into_vec(),
-                });
+            if let Some((addr, bps)) = affiliate {
+                ensure!(bps <= 10_000u16, ContractError::InvalidAffiliateFee {});
+                let pairs: Vec<(Coin, Coin)> = info
+                    .funds
+                    .iter()
+                    .map(|c| -> Result<(Coin, Coin), ContractError> {
+                        let fee = c
+                            .amount
+                            .checked_mul(bps.into())?
+                            .checked_div(10_000u16.into())?;
+                        let net = c.amount.checked_sub(fee)?;
+                        Ok((
+                            coin(net.u128(), c.denom.clone()),
+                            coin(fee.u128(), c.denom.clone()),
+                        ))
+                    })
+                    .collect::<Result<_, _>>()?;
+
+                let (nets, mut fees): (Vec<Coin>, Vec<Coin>) = pairs.into_iter().unzip();
+                fees.retain(|c| !c.amount.is_zero());
+
+                if !fees.is_empty() {
+                    response = response.add_message(BankMsg::Send {
+                        to_address: addr.clone(),
+                        amount: fees,
+                    });
+                }
+
+                net_funds = nets;
             }
 
-            response = response.add_message(WasmMsg::Execute {
-                contract_addr,
-                msg,
-                funds: net_funds.into_vec(),
-            });
-
-            response = response.add_message(WasmMsg::Execute {
-                contract_addr: env.contract.address.to_string(),
-                msg: to_json_binary(&ExecuteMsg::Send {
-                    sender: info.sender.to_string(),
-                })?,
-                funds: vec![],
-            });
+            response = response
+                .add_message(WasmMsg::Execute {
+                    contract_addr,
+                    msg,
+                    funds: net_funds.clone(),
+                })
+                .add_message(WasmMsg::Execute {
+                    contract_addr: env.contract.address.to_string(),
+                    msg: to_json_binary(&ExecuteMsg::Send {
+                        sender: info.sender.to_string(),
+                    })?,
+                    funds: vec![],
+                });
 
             Ok(response)
         }
@@ -105,6 +109,3 @@ pub fn execute(
 pub fn query(_deps: Deps, _env: Env, _msg: QueryMsg) -> Result<Binary, ContractError> {
     Ok(to_json_binary(&())?)
 }
-
-#[cfg(test)]
-mod tests {}

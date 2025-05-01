@@ -1,6 +1,6 @@
 use cosmwasm_std::{CheckedFromRatioError, OverflowError, StdError};
 use cw_utils::PaymentError;
-use nami_rs::FeeManagerError;
+use nami_rs::{AssetAllocationError, FeeManagerError};
 use rujira_rs::OracleError;
 use thiserror::Error;
 
@@ -24,11 +24,32 @@ pub enum ContractError {
     #[error("{0}")]
     FeeManagerError(#[from] FeeManagerError),
 
+    #[error("{0}")]
+    AssetAllocationError(#[from] AssetAllocationError),
+
     #[error("Unauthorized")]
     Unauthorized {},
 
     #[error("InsufficientFunds")]
     InsufficientFunds {},
+
+    #[error("SlippageExceeded")]
+    SlippageExceeded {},
+
+    #[error("Weight must be zero to remove allocation")]
+    WeightNotZero,
+
+    #[error("Missing or duplicate quote allocation")]
+    MissingQuoteAllocation,
+
+    #[error("Weight must sum to 1")]
+    WeightOne,
+
+    #[error("Invalid quote denom")]
+    InvalidQuoteDenom,
+
+    #[error("Swap Contract needed for non-quote allocation")]
+    InvalidSwapContract,
 
     #[error("Invalid: {0}")]
     Invalid(String),

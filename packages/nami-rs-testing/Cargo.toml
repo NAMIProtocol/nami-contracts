@@ -1,0 +1,26 @@
+[package]
+name = "nami-rs-testing"
+version = { workspace = true }
+authors = ["codehans <94654388+codehans@users.noreply.github.com>"]
+edition = { workspace = true }
+
+[features]
+
+[dependencies]
+cosmwasm-std = { workspace = true }
+cosmwasm-schema = { workspace = true }
+cw-storage-plus = { workspace = true }
+schemars = { workspace = true }
+serde = { workspace = true }
+cw-multi-test = { workspace = true }
+anyhow = { workspace = true }
+rujira-rs = { workspace = true }
+anybuf = { workspace = true }
+prost = { workspace = true }
+nami-rs = { workspace = true }
+rujira-rs-testing = { workspace = true }
+rujira-fin = { workspace = true }
+nami-index-nav = { workspace = true }
+nami-index-fixed = { workspace = true }
+nami-index-entry-adapter = { workspace = true }
+nami-affiliate = { workspace = true }

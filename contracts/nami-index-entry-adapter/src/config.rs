@@ -7,13 +7,13 @@ static CONFIG: Item<Config> = Item::new("config");
 
 #[cw_serde]
 pub struct Config {
-    pub base_denom: String,
+    pub quote_denom: String,
 }
 
 impl From<InstantiateMsg> for Config {
     fn from(msg: InstantiateMsg) -> Self {
         Self {
-            base_denom: msg.base_denom,
+            quote_denom: msg.quote_denom,
         }
     }
 }

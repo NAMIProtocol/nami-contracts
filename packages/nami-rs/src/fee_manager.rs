@@ -14,6 +14,33 @@ pub struct FeeRates {
     pub transaction: Option<Decimal>,
 }
 
+impl FeeRates {
+    pub fn validate(&self) -> Result<(), FeeManagerError> {
+        if let Some(rate) = self.management {
+            if rate.gt(&Decimal::one()) {
+                return Err(FeeManagerError::RateGreaterThanOne {
+                    value: "management".to_string(),
+                });
+            }
+        }
+        if let Some(rate) = self.performance {
+            if rate.gt(&Decimal::one()) {
+                return Err(FeeManagerError::RateGreaterThanOne {
+                    value: "performance".to_string(),
+                });
+            }
+        }
+        if let Some(rate) = self.transaction {
+            if rate.gt(&Decimal::one()) {
+                return Err(FeeManagerError::RateGreaterThanOne {
+                    value: "transaction".to_string(),
+                });
+            }
+        }
+        Ok(())
+    }
+}
+
 /// Fee manager
 ///
 /// - `last_accrual_time`: last time fees were accrued in the management fee
@@ -30,6 +57,7 @@ impl FeeManager {
     /// Creates a new `FeeManager` with the given fee rates, initializing
     /// the high‐water mark to zero and setting the last accrual time to `now`.
     pub fn new(rates: FeeRates, now: Timestamp) -> Result<Self, FeeManagerError> {
+        rates.validate()?;
         Ok(FeeManager {
             last_accrual_time: now,
             high_water_mark: Uint128::zero(),
@@ -49,10 +77,7 @@ impl FeeManager {
         now: Timestamp,
         total_supply: Uint128,
     ) -> Result<Uint128, FeeManagerError> {
-        let rate = self
-            .rates
-            .management
-            .ok_or(FeeManagerError::RateNotConfigured {})?;
+        let rate = self.rates.management.unwrap_or_default();
 
         let elapsed = now
             .seconds()
@@ -81,10 +106,7 @@ impl FeeManager {
     ///
     /// On success, returns the net amount after deducting the fee and the fee amount.
     pub fn tx_fee(&self, amount: Uint128) -> Result<(Uint128, Uint128), FeeManagerError> {
-        let rate = self
-            .rates
-            .transaction
-            .ok_or(FeeManagerError::RateNotConfigured {})?;
+        let rate = self.rates.transaction.unwrap_or_default();
 
         let fee = Decimal::from_ratio(amount, Uint128::one())
             .checked_mul(rate)?
@@ -100,10 +122,7 @@ impl FeeManager {
     ///
     /// On success, returns the fee amount.
     pub fn perf_fee(&mut self, current_value: Uint128) -> Result<Uint128, FeeManagerError> {
-        let rate = self
-            .rates
-            .performance
-            .ok_or(FeeManagerError::RateNotConfigured {})?;
+        let rate = self.rates.performance.unwrap_or_default();
 
         if current_value > self.high_water_mark {
             let gain = current_value.checked_sub(self.high_water_mark)?;
@@ -123,8 +142,8 @@ pub enum FeeManagerError {
     #[error("{0}")]
     Overflow(#[from] OverflowError),
 
-    #[error("RateNotConfigured")]
-    RateNotConfigured {},
+    #[error("Rate {value} must be less than 1")]
+    RateGreaterThanOne { value: String },
 }
 
 #[cfg(test)]

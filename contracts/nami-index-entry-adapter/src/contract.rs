@@ -1,8 +1,8 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    coins, ensure_eq, to_json_binary, BankMsg, Binary, Deps, DepsMut, Env, MessageInfo, Response,
-    Uint128, WasmMsg,
+    coins, ensure_eq, to_json_binary, BankMsg, Binary, CosmosMsg, Deps, DepsMut, Env, MessageInfo,
+    Response, Uint128, WasmMsg,
 };
 use cw2::set_contract_version;
 use cw_utils::must_pay;
@@ -33,7 +33,13 @@ pub fn instantiate(
     let config = Config::from(msg.clone());
     config.save(deps.storage)?;
     for (denom, contract) in msg.swap_contracts.iter() {
-        STATUS.add_contract(deps.storage, denom, contract.clone())?;
+        STATUS.add_contract(
+            deps.storage,
+            &deps.querier,
+            denom,
+            contract.clone(),
+            config.quote_denom.clone(),
+        )?;
     }
     Ok(Response::default())
 }
@@ -48,21 +54,30 @@ pub fn execute(
     let config = Config::load(deps.storage)?;
     match msg {
         ExecuteMsg::Deposit { index, swaps } => {
-            let amount = must_pay(&info, config.base_denom.as_str())?;
-            let mut msgs = Vec::new();
-            let mut swap_amount = Uint128::zero();
-            for swap in swaps {
-                swap_amount += swap.amount;
-                msgs.push(STATUS.swap_msg(
-                    deps.storage,
-                    SwapEntry {
-                        denom: config.base_denom.clone(),
-                        amount: swap.amount,
-                        min_return: swap.min_return,
-                    },
-                    None,
-                )?);
-            }
+            let amount = must_pay(&info, config.quote_denom.as_str())?;
+            let (swap_amount, msgs) = swaps.into_iter().try_fold(
+                (Uint128::zero(), Vec::<CosmosMsg>::new()),
+                |(acc, mut msgs),
+                 SwapEntry {
+                     denom,
+                     amount,
+                     min_return,
+                 }|
+                 -> Result<(Uint128, Vec<CosmosMsg>), ContractError> {
+                    let msg = STATUS.swap_msg(
+                        deps.storage,
+                        &denom,
+                        SwapEntry {
+                            denom: config.quote_denom.clone(),
+                            amount,
+                            min_return,
+                        },
+                        None,
+                    )?;
+                    msgs.push(msg);
+                    Ok((acc + amount, msgs))
+                },
+            )?;
             ensure_eq!(
                 amount,
                 swap_amount,
@@ -74,10 +89,10 @@ pub fn execute(
 
             let then = WasmMsg::Execute {
                 contract_addr: env.contract.address.to_string(),
-                msg: to_json_binary(&ThenType::Deposit {
+                msg: to_json_binary(&ExecuteMsg::Then(ThenType::Deposit {
                     sender: info.sender,
                     index,
-                })?,
+                }))?,
                 funds: vec![],
             };
             Ok(Response::default().add_messages(msgs).add_message(then))
@@ -87,10 +102,10 @@ pub fn execute(
             let amount = must_pay(&info, &index.denom)?;
             let then = WasmMsg::Execute {
                 contract_addr: env.contract.address.to_string(),
-                msg: to_json_binary(&ThenType::Swap {
+                msg: to_json_binary(&ExecuteMsg::Then(ThenType::Swap {
                     sender: info.sender.clone(),
                     min_return,
-                })?,
+                }))?,
                 funds: vec![],
             };
             Ok(Response::default()
@@ -113,6 +128,7 @@ pub fn execute(
                         for swap in remaining_coins {
                             msgs.push(STATUS.swap_msg(
                                 deps.storage,
+                                swap.denom.clone().as_str(),
                                 swap,
                                 Some(sender.to_string()),
                             )?);
@@ -120,10 +136,10 @@ pub fn execute(
                     }
                     let then = WasmMsg::Execute {
                         contract_addr: env.contract.address.to_string(),
-                        msg: to_json_binary(&ThenType::Send {
+                        msg: to_json_binary(&ExecuteMsg::Then(ThenType::Send {
                             sender,
                             min_return: None,
-                        })?,
+                        }))?,
                         funds: vec![],
                     };
                     msgs.push(then.into());
@@ -132,45 +148,58 @@ pub fn execute(
                 }
                 ThenType::Swap { sender, min_return } => {
                     let balances = deps.querier.query_all_balances(&env.contract.address)?;
-                    let mut msgs = Vec::new();
-                    for balance in balances {
-                        msgs.push(STATUS.swap_msg(
-                            deps.storage,
-                            SwapEntry {
-                                denom: balance.denom,
-                                amount: balance.amount,
-                                min_return: None,
-                            },
-                            None,
-                        )?);
-                    }
+                    let mut msgs: Vec<CosmosMsg> = balances
+                        .into_iter()
+                        .map(|balance| {
+                            STATUS
+                                .swap_msg(
+                                    deps.storage,
+                                    balance.denom.as_str(),
+                                    SwapEntry {
+                                        denom: balance.denom.clone(),
+                                        amount: balance.amount,
+                                        min_return: None,
+                                    },
+                                    None,
+                                )
+                                .map(Into::into)
+                        })
+                        .collect::<Result<_, ContractError>>()?;
 
-                    let then = WasmMsg::Execute {
-                        contract_addr: env.contract.address.to_string(),
-                        msg: to_json_binary(&ThenType::Send { sender, min_return })?,
-                        funds: vec![],
-                    };
-                    msgs.push(then.into());
+                    msgs.push(
+                        WasmMsg::Execute {
+                            contract_addr: env.contract.address.to_string(),
+                            msg: to_json_binary(&ExecuteMsg::Then(ThenType::Send {
+                                sender,
+                                min_return,
+                            }))?,
+                            funds: vec![],
+                        }
+                        .into(),
+                    );
 
                     Ok(Response::default().add_messages(msgs))
                 }
                 ThenType::Send { sender, min_return } => {
                     let balances = deps.querier.query_all_balances(&env.contract.address)?;
-                    let mut msgs = Vec::new();
-                    for balance in balances {
-                        if let Some(min_return) = min_return {
-                            if balance.amount < min_return {
-                                return Err(ContractError::InsufficientReturn {
-                                    expected: min_return,
-                                    returned: balance.amount,
-                                });
+                    let msgs: Vec<CosmosMsg> = balances
+                        .into_iter()
+                        .map(|balance| {
+                            if let Some(min) = min_return {
+                                if balance.amount < min {
+                                    return Err(ContractError::InsufficientReturn {
+                                        expected: min,
+                                        returned: balance.amount,
+                                    });
+                                }
                             }
-                        }
-                        msgs.push(BankMsg::Send {
-                            to_address: sender.to_string(),
-                            amount: coins(balance.amount.u128(), balance.denom),
-                        });
-                    }
+                            Ok(BankMsg::Send {
+                                to_address: sender.to_string(),
+                                amount: coins(balance.amount.u128(), balance.denom),
+                            }
+                            .into())
+                        })
+                        .collect::<Result<_, ContractError>>()?;
                     Ok(Response::default().add_messages(msgs))
                 }
             }
@@ -180,19 +209,20 @@ pub fn execute(
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn sudo(deps: DepsMut, _env: Env, msg: SudoMsg) -> Result<Response, ContractError> {
-    let mut config = Config::load(deps.storage)?;
+    let config = Config::load(deps.storage)?;
     match msg {
         SudoMsg::AddSwapContract { denom, contract } => {
-            STATUS.add_contract(deps.storage, &denom, contract)?;
+            STATUS.add_contract(
+                deps.storage,
+                &deps.querier,
+                &denom,
+                contract.clone(),
+                config.quote_denom.clone(),
+            )?;
             Ok(Response::default())
         }
         SudoMsg::RemoveSwapContract { denom } => {
             STATUS.remove_contract(deps.storage, &denom)?;
-            Ok(Response::default())
-        }
-        SudoMsg::UpdateConfig { base_denom } => {
-            config.base_denom = base_denom;
-            config.save(deps.storage)?;
             Ok(Response::default())
         }
     }
@@ -204,8 +234,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractErr
         QueryMsg::Config {} => Ok(to_json_binary(&Config::load(deps.storage)?)?),
         QueryMsg::SwapContracts {} => {
             let swap_contracts = STATUS.get_swap_contracts(deps.storage)?;
-            let response = SwapContractsResponse { swap_contracts };
-            Ok(to_json_binary(&response)?)
+            Ok(to_json_binary(&SwapContractsResponse { swap_contracts })?)
         }
         QueryMsg::SwapContract { denom } => {
             let contract = STATUS.get(deps.storage, &denom)?;
