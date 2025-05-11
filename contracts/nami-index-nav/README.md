@@ -21,12 +21,12 @@
 - Mints AUM fee tokens to the fee collector.
 - Emits a `deposit` event.
 
-#### `ExecuteMsg::Withdraw {}`
+#### `ExecuteMsg::Withdraw { slippage }`
 - Validates the receipt token amount via `must_pay`.
 - Applies the exit fee and calculates the net share.
 - Computes NAV to determine the withdrawal amount.
 - Withdraws fund assets based on current portfolio allocation.
-- Swaps the assets to `quote_denom`.
+- Swaps underlying assets to `quote_denom` with the specified slippage tolerance.
 - Sends tokens to the user.
 - Mints AUM and exit fee tokens to the fee collector.
 - Emits a `withdraw` event.
@@ -41,7 +41,12 @@
 ---
 
 ### Sudo
-- Currently unused. Reserved for administrative controls.
+#### `SudoMsg::UpdateFees { fee_collector, fees }`
+- Updates fee collector address and fee parameters.
+#### `SudoMsg::AddAllocation { denom, weight, contract, oracle, threshold }`
+- Adds a new asset allocation with specified weight, swap contract, price oracle, and threshold for rebalancing.
+#### `SudoMsg::RemoveAllocation { denom }`
+- Removes an existing asset allocation.
 
 ---
 

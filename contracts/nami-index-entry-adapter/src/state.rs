@@ -31,7 +31,7 @@ impl<'a> Status<'a> {
         ensure_eq!(
             config.denoms.quote(),
             quote_denom,
-            ContractError::Invalid("Invalid quote denom".to_string())
+            ContractError::InvalidQuoteDenom
         );
         self.swap_contracts.save(storage, key, &value)?;
         Ok(())
@@ -79,3 +79,8 @@ impl<'a> Status<'a> {
         self.swap_contracts.load(storage, key)
     }
 }
+
+
+
+// 1000 usdc -> 30% in nami - 50% in auto -  20% in lqdy
+//

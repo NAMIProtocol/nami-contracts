@@ -32,18 +32,30 @@
 - Emits a `withdraw` event.
 
 #### `ExecuteMsg::Callback(cb)`
-- Only callback supported: `AfterReallocate { swap_to }`.
+- Only callback supported: `AfterReallocate { swap_to, min_return }`.
 - Finalizes reallocation by executing the second leg of the token swap (from `base_token` to `swap_to`).
+
+#### `ExecuteMsg::Run {}`
+- Triggers rebalancing of the vault after token swaps (used internally).
 
 ---
 
 ### Sudo
 
-#### `SudoMsg::Reallocate { from, to, weight }`
+#### `SudoMsg::Reallocate { from, to, weight, min_return }`
 - Validates inputs and calculates current total supply.
 - Adjusts internal allocation weights.
-- Triggers the first leg of the token reallocation (from `from` to `base_token`).
+- Triggers the first leg of the token reallocation (from `from` to `base_token`) with `min_return`.
 - Emits a `reallocate` event.
+
+#### `SudoMsg::UpdateFees { fee_collector, fees }`
+- Updates fee parameters and fee collector address.
+
+#### `SudoMsg::RemoveAllocation { denom }`
+- Removes an allocation for the given denomination.
+
+#### `SudoMsg::AddAllocation { denom, contract }`
+- Adds a new allocation and rebalances vault with existing supply.
 
 ---
 
