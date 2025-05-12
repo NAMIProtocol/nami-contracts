@@ -1,5 +1,3 @@
-use std::str::FromStr;
-
 use cosmwasm_std::{Addr, Coin, Decimal, Uint128};
 use cw_multi_test::{AppResponse, ContractWrapper, Executor};
 use rujira_rs::{
@@ -15,26 +13,21 @@ pub struct MockFin {
 }
 
 impl MockFin {
-    pub fn new(app: &mut RujiraApp, base_denom: &str) -> Self {
+    pub fn new(app: &mut RujiraApp, base_denom: &str, quote_denom: &str) -> Self {
         let owner = app.api().addr_make("owner");
 
         let code = Box::new(ContractWrapper::new(execute, instantiate, query).with_sudo(sudo));
         let code_id = app.store_code(code);
         let layer_1_asset = get_layer_1_asset(base_denom);
+        let layer_1_asset_quote = get_layer_1_asset(quote_denom);
         let contract = app
             .instantiate_contract(
                 code_id,
                 owner,
                 &InstantiateMsg {
-                    denoms: Denoms::new(base_denom, "eth-usdc"),
+                    denoms: Denoms::new(base_denom, quote_denom),
                     market_maker: None,
-                    oracles: Some([
-                        layer_1_asset,
-                        Layer1Asset::try_from(
-                            "ETH.USDC-0XA0B86991C6218B36C1D19D4A2E9EB0CE3606EB48",
-                        )
-                        .unwrap(),
-                    ]),
+                    oracles: Some([layer_1_asset, layer_1_asset_quote]),
                     tick: Tick::new(6u8),
                     fee_taker: Decimal::zero(),
                     fee_maker: Decimal::zero(),
@@ -49,7 +42,7 @@ impl MockFin {
         MockFin { address: contract }
     }
 
-    pub fn new_app_layer(app: &mut RujiraApp, base_denom: &str) -> Self {
+    pub fn new_app_layer(app: &mut RujiraApp, base_denom: &str, quote_denom: &str) -> Self {
         let owner = app.api().addr_make("owner");
 
         let code = Box::new(ContractWrapper::new(execute, instantiate, query).with_sudo(sudo));
@@ -59,7 +52,7 @@ impl MockFin {
                 code_id,
                 owner,
                 &InstantiateMsg {
-                    denoms: Denoms::new(base_denom, "eth-usdc"),
+                    denoms: Denoms::new(base_denom, quote_denom),
                     market_maker: None,
                     oracles: None,
                     tick: Tick::new(6u8),
@@ -74,87 +67,6 @@ impl MockFin {
             .unwrap();
 
         MockFin { address: contract }
-    }
-
-    pub fn new_app_layer_wrong_quote_denom(app: &mut RujiraApp, base_denom: &str) -> Self {
-        let owner = app.api().addr_make("owner");
-
-        let code = Box::new(ContractWrapper::new(execute, instantiate, query).with_sudo(sudo));
-        let code_id = app.store_code(code);
-        let contract = app
-            .instantiate_contract(
-                code_id,
-                owner,
-                &InstantiateMsg {
-                    denoms: Denoms::new(base_denom, "wrong-denom"),
-                    market_maker: None,
-                    oracles: None,
-                    tick: Tick::new(6u8),
-                    fee_taker: Decimal::zero(),
-                    fee_maker: Decimal::zero(),
-                    fee_address: app.api().addr_make("fee").to_string(),
-                },
-                &[],
-                "template",
-                None,
-            )
-            .unwrap();
-
-        MockFin { address: contract }
-    }
-
-    pub fn populate_orderbooks(
-        &self,
-        app: &mut RujiraApp,
-        user: &Addr,
-        funds: Vec<Coin>,
-    ) -> anyhow::Result<AppResponse> {
-        app.execute_contract(
-            user.clone(),
-            self.address.clone(),
-            &ExecuteMsg::Order((
-                vec![
-                    (Side::Base, Price::Oracle(0), Some(Uint128::from(10000u128))),
-                    (
-                        Side::Base,
-                        Price::Fixed(Decimal::from_str("100000").unwrap()),
-                        Some(Uint128::from(10000u128)),
-                    ),
-                    (
-                        Side::Base,
-                        Price::Fixed(Decimal::from_str("93317").unwrap()),
-                        Some(Uint128::from(10000u128)),
-                    ),
-                    (
-                        Side::Base,
-                        Price::Fixed(Decimal::from_str("93219").unwrap()),
-                        Some(Uint128::from(21000u128)),
-                    ),
-                    (
-                        Side::Base,
-                        Price::Fixed(Decimal::from_str("91219").unwrap()),
-                        Some(Uint128::from(51000u128)),
-                    ),
-                    (
-                        Side::Quote,
-                        Price::Oracle(-1000),
-                        Some(Uint128::from(1000000000u128)),
-                    ),
-                    (
-                        Side::Quote,
-                        Price::Fixed(Decimal::from_str("90000").unwrap()),
-                        Some(Uint128::from(1250000000u128)),
-                    ),
-                    (
-                        Side::Quote,
-                        Price::Fixed(Decimal::from_str("87900").unwrap()),
-                        Some(Uint128::from(5100000000u128)),
-                    ),
-                ],
-                None,
-            )),
-            &funds,
-        )
     }
 
     pub fn populate_orderbook(
@@ -181,6 +93,21 @@ impl MockFin {
             orders.push((Side::Quote, Price::Fixed(price_below), Some(size)));
         }
 
+        app.execute_contract(
+            user.clone(),
+            self.address.clone(),
+            &ExecuteMsg::Order((orders, None)),
+            &funds,
+        )
+    }
+
+    pub fn execute_order(
+        &self,
+        app: &mut RujiraApp,
+        user: &Addr,
+        funds: Vec<Coin>,
+        orders: Vec<(Side, Price, Option<Uint128>)>,
+    ) -> anyhow::Result<AppResponse> {
         app.execute_contract(
             user.clone(),
             self.address.clone(),

@@ -100,7 +100,10 @@ pub fn execute(
         ExecuteMsg::Callback(cb) => {
             let callback_type: CallbackType = cb.deserialize_callback()?;
             match callback_type {
-                CallbackType::AfterReallocate { swap_to, min_return } => {
+                CallbackType::AfterReallocate {
+                    swap_to,
+                    min_return,
+                } => {
                     let coin = deps
                         .querier
                         .query_balance(&env.contract.address, &config.quote_denom)?;
@@ -143,8 +146,14 @@ pub fn sudo(deps: DepsMut, env: Env, msg: SudoMsg) -> Result<Response, ContractE
     let total_supply = rcpt.supply(deps.querier)?;
     let vault = Vault::new(deps.api, &deps.querier, env.contract.address);
     match msg {
-        SudoMsg::Reallocate { from, to, weight, min_return } => {
-            let msg = Vault::reallocate(deps.storage, &from, &to, weight, total_supply, min_return)?;
+        SudoMsg::Reallocate {
+            from,
+            to,
+            weight,
+            min_return,
+        } => {
+            let msg =
+                Vault::reallocate(deps.storage, &from, &to, weight, total_supply, min_return)?;
             let response = Response::new().add_event(event_reallocate(from, to, weight));
             Ok(response.add_message(msg))
         }

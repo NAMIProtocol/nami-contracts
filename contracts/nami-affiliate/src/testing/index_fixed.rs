@@ -69,9 +69,14 @@ pub fn setup(
         },
     );
 
-    let affiliate = MockNamiAffiliate::new(&mut nami_app, affiliate::InstantiateMsg {});
+    let affiliate = MockNamiAffiliate::new(
+        &mut nami_app,
+        affiliate::InstantiateMsg {
+            whitelist: Some(vec![entry_adapter.address.to_string()]),
+        },
+    );
 
-    TestEnv {   
+    TestEnv {
         app: nami_app,
         affiliate,
         entry_adapter,
@@ -87,7 +92,7 @@ fn get_target_allocations(
     let mut result = Vec::new();
     let mut swap_mocks: Vec<(String, MockFin)> = Vec::new();
     for (denom, weight) in target_allocations {
-        let swap_mock = MockFin::new_app_layer(app, denom.as_str());
+        let swap_mock = MockFin::new_app_layer(app, denom.as_str(), "eth-usdc");
         result.push((denom.clone(), weight, swap_mock.address.to_string()));
         swap_mocks.push((denom.clone(), swap_mock));
     }

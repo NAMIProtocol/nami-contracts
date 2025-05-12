@@ -57,7 +57,12 @@ pub fn setup(balances: Vec<(&str, Vec<Coin>)>) -> TestEnv {
     .address
     .to_string();
 
-    let affiliate = MockNamiAffiliate::new(&mut nami_app, InstantiateMsg {});
+    let affiliate = MockNamiAffiliate::new(
+        &mut nami_app,
+        InstantiateMsg {
+            whitelist: Some(vec![target_contract.clone()]),
+        },
+    );
 
     TestEnv {
         app: nami_app,

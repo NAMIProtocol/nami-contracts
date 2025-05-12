@@ -19,6 +19,7 @@ pub fn setup(
     target_allocations: Vec<(String, Decimal, Decimal)>,
     management_fee: Option<Decimal>,
     transaction_fee: Option<Decimal>,
+    base_or_quote: &str,
 ) -> anyhow::Result<TestEnv> {
     let mut nami_app = NamiApp::new(mock_rujira_app());
 
@@ -27,8 +28,11 @@ pub fn setup(
     }
     let fee_collector = nami_app.api().addr_make("fee_collector");
 
-    let (swap_mocks, target_allocations) =
-        get_target_allocations(&mut nami_app, target_allocations);
+    let (swap_mocks, target_allocations) = if base_or_quote == "base" {
+        get_target_allocations_base_denom(&mut nami_app, target_allocations)
+    } else {
+        get_target_allocations(&mut nami_app, target_allocations)
+    };
 
     let index = MockNamiIndexNav::new(
         &mut nami_app,
@@ -68,7 +72,7 @@ fn get_target_allocations(
     for (denom, weight, threshold) in target_allocations {
         match denom.as_str() {
             "btc-btc" => {
-                let swap_mock = MockFin::new(app, "btc-btc");
+                let swap_mock = MockFin::new(app, "btc-btc", "eth-usdc");
                 result.push(AssetAllocation::new(
                     denom.clone(),
                     weight,
@@ -79,7 +83,55 @@ fn get_target_allocations(
                 swap_mocks.push((denom.clone(), swap_mock));
             }
             "eth-eth" => {
-                let swap_mock = MockFin::new(app, "eth-eth");
+                let swap_mock = MockFin::new(app, "eth-eth", "eth-usdc");
+                result.push(AssetAllocation::new(
+                    denom.clone(),
+                    weight,
+                    Some(swap_mock.address.to_string()),
+                    OracleConfig::Layer1(Layer1Asset::new(Chain::Eth, "ETH")),
+                    threshold,
+                ));
+                swap_mocks.push((denom.clone(), swap_mock));
+            }
+            "eth-usdc" => {
+                result.push(AssetAllocation::new(
+                    denom.clone(),
+                    weight,
+                    None,
+                    OracleConfig::Layer1(Layer1Asset::new(
+                        Chain::Eth,
+                        "USDC-0XA0B86991C6218B36C1D19D4A2E9EB0CE3606EB48",
+                    )),
+                    threshold,
+                ));
+            }
+            _ => {}
+        }
+    }
+    (swap_mocks, result)
+}
+
+fn get_target_allocations_base_denom(
+    app: &mut NamiApp,
+    target_allocations: Vec<(String, Decimal, Decimal)>,
+) -> (Vec<(String, MockFin)>, Vec<AssetAllocation<OracleConfig>>) {
+    let mut result = Vec::new();
+    let mut swap_mocks: Vec<(String, MockFin)> = Vec::new();
+    for (denom, weight, threshold) in target_allocations {
+        match denom.as_str() {
+            "btc-btc" => {
+                let swap_mock = MockFin::new(app, "eth-usdc", "btc-btc");
+                result.push(AssetAllocation::new(
+                    denom.clone(),
+                    weight,
+                    Some(swap_mock.address.to_string()),
+                    OracleConfig::Layer1(Layer1Asset::new(Chain::Btc, "BTC")),
+                    threshold,
+                ));
+                swap_mocks.push((denom.clone(), swap_mock));
+            }
+            "eth-eth" => {
+                let swap_mock = MockFin::new(app, "eth-usdc", "eth-eth");
                 result.push(AssetAllocation::new(
                     denom.clone(),
                     weight,

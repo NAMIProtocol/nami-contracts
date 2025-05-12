@@ -1,25 +1,39 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    coin, ensure, ensure_eq, to_json_binary, BankMsg, Binary, Coin, Deps, DepsMut, Env,
-    MessageInfo, Response, WasmMsg,
+    coin, ensure, ensure_eq, to_json_binary, BankMsg, Binary, Coin, Deps, DepsMut, Empty, Env,
+    MessageInfo, Order, Response, StdError, WasmMsg,
 };
 use cw2::set_contract_version;
-use nami_rs::affiliate::{ExecuteMsg, InstantiateMsg, QueryMsg};
+use nami_rs::affiliate::{ExecuteMsg, InstantiateMsg, QueryMsg, SudoMsg};
 
 use crate::{error::ContractError, events::execute_event};
+use cosmwasm_std::Addr;
+use cw_storage_plus::Map;
 
 const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
+
+static WHITELIST: Map<Addr, Empty> = Map::new("whitelist");
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
     deps: DepsMut,
     _env: Env,
     _info: MessageInfo,
-    _msg: InstantiateMsg,
+    msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+    if let Some(whitelist) = msg.whitelist {
+        for addr in whitelist {
+            WHITELIST.save(
+                deps.storage,
+                deps.api.addr_validate(addr.as_str())?,
+                &Empty {},
+            )?;
+        }
+    }
+
     Ok(Response::default())
 }
 
@@ -37,6 +51,13 @@ pub fn execute(
             affiliate,
         } => {
             ensure!(!info.funds.is_empty(), ContractError::InsufficientFunds {});
+            ensure!(
+                WHITELIST.has(
+                    deps.storage,
+                    deps.api.addr_validate(contract_addr.as_str())?
+                ),
+                ContractError::Unauthorized {}
+            );
             let mut net_funds = info.funds.clone();
             let mut response =
                 Response::new().add_event(execute_event(contract_addr.clone(), affiliate.clone()));
@@ -106,6 +127,31 @@ pub fn execute(
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(_deps: Deps, _env: Env, _msg: QueryMsg) -> Result<Binary, ContractError> {
-    Ok(to_json_binary(&())?)
+pub fn sudo(deps: DepsMut, _env: Env, msg: SudoMsg) -> Result<Response, ContractError> {
+    match msg {
+        SudoMsg::AddWhitelisted { addr } => {
+            WHITELIST.save(
+                deps.storage,
+                deps.api.addr_validate(addr.as_str())?,
+                &Empty {},
+            )?;
+            Ok(Response::default())
+        }
+        SudoMsg::RemoveWhitelisted { addr } => {
+            WHITELIST.remove(deps.storage, deps.api.addr_validate(addr.as_str())?);
+            Ok(Response::default())
+        }
+    }
+}
+
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, StdError> {
+    match msg {
+        QueryMsg::Whitelists {} => {
+            let keys = WHITELIST
+                .keys(deps.storage, None, None, Order::Ascending)
+                .collect::<Result<Vec<Addr>, StdError>>()?;
+            Ok(to_json_binary(&keys)?)
+        }
+    }
 }

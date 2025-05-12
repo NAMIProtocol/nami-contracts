@@ -49,7 +49,7 @@ impl<'a> Vault<'a> {
             .querier
             .query_wasm_smart(&contract, &fin::QueryMsg::Config {})?;
         ensure!(
-            config.denoms.quote() == quote_denom,
+            config.denoms.quote() == quote_denom || config.denoms.base() == quote_denom,
             ContractError::InvalidQuoteDenom
         );
         ALLOCATIONS.save(storage, denom, &(weight, contract))?;
@@ -137,7 +137,10 @@ impl<'a> Vault<'a> {
 
         let amount_to_swap = curr_weight.checked_sub(weight)?.checked_mul(total_shares)?;
 
-        let callback = to_json_binary(&CallbackType::AfterReallocate { swap_to, min_return })?;
+        let callback = to_json_binary(&CallbackType::AfterReallocate {
+            swap_to,
+            min_return,
+        })?;
 
         Ok(WasmMsg::Execute {
             contract_addr: swap_from.to_string(),

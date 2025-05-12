@@ -201,15 +201,11 @@ fn base_test() {
     assert_eq!(sender_balance, Uint128::new(10_000_000 - 1000));
 }
 
-
 #[test]
 fn lifecycle_index_fixed() {
     // Initialize user balances
     let balances = vec![
-        (
-            "user",
-            vec![coin(10_000_000_000, "eth-usdc")],
-        ),
+        ("user", vec![coin(10_000_000_000, "eth-usdc")]),
         (
             "owner",
             vec![
@@ -275,7 +271,8 @@ fn lifecycle_index_fixed() {
                     min_return: None,
                 },
             ],
-        }).unwrap(),
+        })
+        .unwrap(),
         affiliate: Some((affiliate_addr.clone(), 1000u16)),
     };
     let res = test_env
@@ -297,7 +294,9 @@ fn lifecycle_index_fixed() {
     assert_eq!(affiliate_balance, Uint128::new(17_000)); // 10% of 170_000
 
     let rcpt_denom = format!("x/nami-index-{}-rcpt", test_env.index.address);
-    let user_balance = test_env.app.query_balance("user", &rcpt_denom.clone(), true);
+    let user_balance = test_env
+        .app
+        .query_balance("user", &rcpt_denom.clone(), true);
     assert_eq!(user_balance, Uint128::new(9)); // 9 index tokens
 
     // Test with rest after swaps, make sure the affiliate sends everything back to the user
@@ -323,7 +322,8 @@ fn lifecycle_index_fixed() {
                     min_return: None,
                 },
             ],
-        }).unwrap(),
+        })
+        .unwrap(),
         affiliate: Some((affiliate_addr.clone(), 1000u16)),
     };
     let res = test_env
@@ -345,7 +345,9 @@ fn lifecycle_index_fixed() {
     assert_eq!(affiliate_balance, Uint128::new(35_000)); // 10% of 180_000 + 17_000 (old)
 
     let rcpt_denom = format!("x/nami-index-{}-rcpt", test_env.index.address);
-    let user_balance = test_env.app.query_balance("user", &rcpt_denom.clone(), true);
+    let user_balance = test_env
+        .app
+        .query_balance("user", &rcpt_denom.clone(), true);
     assert_eq!(user_balance, Uint128::new(18)); // 9 index tokens + 9 index tokens from previous deposit
 
     // assert user balance usdc

@@ -68,7 +68,7 @@ impl<'a> Vault<'a> {
                 .querier
                 .query_wasm_smart(swap_addr, &fin::QueryMsg::Config {})?;
             ensure!(
-                cfg.denoms.quote() == self.quote_denom,
+                cfg.denoms.quote() == self.quote_denom || cfg.denoms.base() == self.quote_denom,
                 ContractError::InvalidQuoteDenom
             );
             allocation.oracle.price(*self.querier)?;

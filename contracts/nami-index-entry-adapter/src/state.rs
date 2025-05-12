@@ -79,8 +79,3 @@ impl<'a> Status<'a> {
         self.swap_contracts.load(storage, key)
     }
 }
-
-
-
-// 1000 usdc -> 30% in nami - 50% in auto -  20% in lqdy
-//

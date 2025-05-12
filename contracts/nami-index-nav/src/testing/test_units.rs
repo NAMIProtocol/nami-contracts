@@ -4,7 +4,10 @@ use crate::testing::index;
 use cosmwasm_std::{coin, coins, Decimal, Event, Uint128};
 use nami_rs::{FeeManager, FeeRates, OracleConfig};
 use nami_rs_testing::mock_fin::MockFin;
-use rujira_rs::{Chain, Layer1Asset};
+use rujira_rs::{
+    fin::{Price, Side},
+    Chain, Layer1Asset,
+};
 
 #[test]
 fn base_lifecycle() {
@@ -36,6 +39,7 @@ fn base_lifecycle() {
         ],
         None,
         None,
+        "quote",
     )
     .unwrap();
     let rcpt_denom = format!("x/nami-index-{}-rcpt", test_env.index.address);
@@ -211,6 +215,7 @@ fn lifecycle() {
         ],
         Some(Decimal::percent(1)), // 1% annual management fee
         Some(Decimal::percent(3)), // 3% transaction fee
+        "quote",
     )
     .unwrap();
     let rcpt_denom = format!("x/nami-index-{}-rcpt", test_env.index.address);
@@ -374,7 +379,7 @@ fn lifecycle() {
     );
 
     // Update allocations to add eth-eth and adjust weights
-    let eth_eth_swap = MockFin::new(&mut test_env.app, "eth-eth");
+    let eth_eth_swap = MockFin::new(&mut test_env.app, "eth-eth", "eth-usdc");
     // Populate eth-eth swap orderbook to support rebalancing
     let fair_price_eth = Decimal::from_str("2500").unwrap();
     eth_eth_swap
@@ -543,6 +548,7 @@ fn invalid_allocation_weights() {
         ],
         None,
         None,
+        "quote",
     );
     assert!(res.is_err());
     let err = res.err().unwrap();
@@ -579,6 +585,7 @@ fn cannot_remove_allocation_with_non_zero_balance() {
         ],
         Some(Decimal::percent(1)),
         Some(Decimal::percent(3)),
+        "quote",
     )
     .unwrap();
 
@@ -654,11 +661,11 @@ fn add_contract_wrong_denom() {
         ],
         Some(Decimal::percent(1)),
         Some(Decimal::percent(3)),
+        "quote",
     )
     .unwrap();
 
-    let wrong_denom_contract =
-        MockFin::new_app_layer_wrong_quote_denom(&mut test_env.app, "btc-btc");
+    let wrong_denom_contract = MockFin::new_app_layer(&mut test_env.app, "btc-btc", "wrong_quote");
 
     test_env
         .index
@@ -673,4 +680,191 @@ fn add_contract_wrong_denom() {
             ),
         )
         .unwrap_err();
+}
+
+// The following tests are a copy of the base lifecycle tests, it checks only if the vault works with swap contracts with base denom = to vault quote denom
+#[test]
+fn base_lifecycle_with_base_denom() {
+    // Initialize user balances
+    let balances = vec![
+        ("user", vec![coin(10_000_000_000, "eth-usdc")]),
+        (
+            "owner",
+            vec![
+                coin(100_000_000_000, "eth-usdc"),
+                coin(100_000_000_000, "btc-btc"),
+            ],
+        ),
+    ];
+    let mut test_env = index::setup(
+        balances,
+        "eth-usdc".to_string(),
+        vec![
+            (
+                "btc-btc".to_string(),
+                Decimal::percent(50),
+                Decimal::percent(0),
+            ),
+            (
+                "eth-usdc".to_string(),
+                Decimal::percent(50),
+                Decimal::percent(0),
+            ),
+        ],
+        None,
+        None,
+        "base",
+    )
+    .unwrap();
+    let rcpt_denom = format!("x/nami-index-{}-rcpt", test_env.index.address);
+
+    // Successful deposit
+    let res = test_env
+        .index
+        .execute_deposit(&mut test_env.app, "user", coins(5_000_000u128, "eth-usdc"))
+        .unwrap();
+    res.assert_event(&Event::new("wasm-nami-index-nav/deposit"));
+    res.assert_event(&Event::new("mint").add_attributes(vec![("amount", "5000000".to_string())]));
+
+    // Check contract balances
+    let usdc_balance =
+        test_env
+            .app
+            .query_balance(&test_env.index.address.as_str(), "eth-usdc", false);
+    let btc_balance =
+        test_env
+            .app
+            .query_balance(&test_env.index.address.as_str(), "btc-btc", false);
+    assert_eq!(usdc_balance, Uint128::from(5_000_000u128));
+    assert_eq!(btc_balance, Uint128::zero());
+
+    // Check receipt balance for user
+    let rcpt_balance = test_env.app.query_balance("user", &rcpt_denom, true);
+    assert_eq!(rcpt_balance, Uint128::from(5_000_000u128));
+
+    // Successful withdraw
+    let withdraw_rcpt_amount = Uint128::from(1_000_000u128);
+    let res = test_env
+        .index
+        .execute_withdraw(
+            &mut test_env.app,
+            "user",
+            coins(withdraw_rcpt_amount.u128(), rcpt_denom.clone()),
+            None,
+        )
+        .unwrap();
+    res.assert_event(&Event::new("wasm-nami-index-nav/withdraw"));
+    res.assert_event(&Event::new("burn"));
+
+    // Verify user usdc balance
+    let usdc_balance = test_env.app.query_balance("user", "eth-usdc", true);
+    assert_eq!(
+        usdc_balance,
+        Uint128::from(10_000_000_000u128 - 5_000_000u128 + 1_000_000u128)
+    );
+
+    // Verify fee collector balance
+    let fee_balance = test_env
+        .app
+        .query_balance("fee_collector", &rcpt_denom, true);
+    assert_eq!(fee_balance, Uint128::zero());
+
+    // Check status
+    let status = test_env.index.query_status(&mut test_env.app).unwrap();
+    assert_eq!(status.nav, Decimal::from_str("1.001").unwrap());
+
+    // Prepare for run
+    let owner = test_env.app.api().addr_make("owner");
+
+    // Add central order at fair_price
+    let orders = vec![
+        (
+            Side::Base,
+            Price::Fixed(Decimal::from_str("0.000011").unwrap()),
+            Some(Uint128::from(1_000_000u128)),
+        ),
+        (
+            Side::Quote,
+            Price::Fixed(Decimal::from_str("0.000010").unwrap()),
+            Some(Uint128::from(1_000_000u128)),
+        ),
+    ];
+
+    test_env.swaps[0]
+        .1
+        .execute_order(
+            &mut test_env.app,
+            &owner,
+            vec![
+                coin(1_000_000u128, "btc-btc"),
+                coin(1_000_000u128, "eth-usdc"),
+            ],
+            orders,
+        )
+        .unwrap();
+
+    // First run
+    let res = test_env
+        .index
+        .execute_run(&mut test_env.app, "user")
+        .unwrap();
+    res.assert_event(&Event::new("wasm-nami-index-nav/run"));
+    let balances1 = test_env
+        .app
+        .query_all_balances(&test_env.index.address.as_str(), false);
+
+    // Second run (idempotent)
+    let res = test_env
+        .index
+        .execute_run(&mut test_env.app, "user")
+        .unwrap();
+    res.assert_event(&Event::new("wasm-nami-index-nav/run"));
+    let balances2 = test_env
+        .app
+        .query_all_balances(&test_env.index.address.as_str(), false);
+    assert_eq!(
+        balances1, balances2,
+        "Balances should not change on idempotent run"
+    );
+
+    // Test queries
+    let config = test_env.index.query_config(&mut test_env.app).unwrap();
+    assert_eq!(config.quote_denom, "eth-usdc");
+
+    let fee = test_env.index.query_fees(&mut test_env.app).unwrap();
+    assert_eq!(
+        fee,
+        FeeManager {
+            last_accrual_time: test_env.app.block_info().time,
+            high_water_mark: Uint128::zero(),
+            rates: FeeRates {
+                management: None,
+                performance: None,
+                transaction: None
+            }
+        }
+    );
+
+    // Check status nav increase because btc oracle price is higher than swap price
+    let status = test_env.index.query_status(&mut test_env.app).unwrap();
+    assert_eq!(status.nav, Decimal::from_str("1.001").unwrap());
+    assert_eq!(status.shares, Uint128::from(4_000_000u128));
+    assert_eq!(status.total_value, Uint128::from(4_004_000u128));
+    assert_eq!(
+        status.allocation,
+        [
+            (
+                "btc-btc".to_string(),
+                Uint128::from(20u128),
+                Decimal::from_str("100100").unwrap(),
+                Decimal::percent(50),
+            ),
+            (
+                "eth-usdc".to_string(),
+                Uint128::from(2_000_000u128),
+                Decimal::from_str("1.001").unwrap(),
+                Decimal::percent(50),
+            ),
+        ]
+    );
 }

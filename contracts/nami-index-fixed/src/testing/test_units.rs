@@ -342,7 +342,13 @@ fn test_reallocate() {
     //  try reallocation
     let res = test_env
         .index
-        .sudo_reallocate(&mut test_env.app, "auto", "lqdy", Uint128::from(50_000u128), None)
+        .sudo_reallocate(
+            &mut test_env.app,
+            "auto",
+            "lqdy",
+            Uint128::from(50_000u128),
+            None,
+        )
         .unwrap();
     res.assert_event(&Event::new("wasm-nami-index-fixed/reallocate"));
 
@@ -533,7 +539,7 @@ fn test_add_allocation() {
     res.assert_event(&Event::new("wasm-nami-index-fixed/deposit"));
 
     // Add new allocation for lqdy
-    let lqdy_swap = MockFin::new_app_layer(&mut test_env.app, "lqdy");
+    let lqdy_swap = MockFin::new_app_layer(&mut test_env.app, "lqdy", "eth-usdc");
     let owner = test_env.app.api().addr_make("owner");
     lqdy_swap
         .populate_orderbook(
@@ -624,7 +630,7 @@ fn test_add_allocation_zero_rcpt() {
     );
 
     // Add new allocation for lqdy
-    let lqdy_swap = MockFin::new_app_layer(&mut test_env.app, "lqdy");
+    let lqdy_swap = MockFin::new_app_layer(&mut test_env.app, "lqdy", "eth-usdc");
     let owner = test_env.app.api().addr_make("owner");
     lqdy_swap
         .populate_orderbook(
@@ -844,14 +850,13 @@ pub fn test_add_contract_wrong_denom() {
         None,
     );
 
-    let wrong_denom_contract =
-        MockFin::new_app_layer_wrong_quote_denom(&mut test_env.app, "lqdy");
+    let wrong_denom_contract = MockFin::new_app_layer(&mut test_env.app, "lqdy", "wrong_denom");
 
     test_env
         .index
         .sudo_add_allocation(
             &mut test_env.app,
-            ("lqdy".to_string(),wrong_denom_contract.address.to_string()),
+            ("lqdy".to_string(), wrong_denom_contract.address.to_string()),
         )
         .unwrap_err();
 }

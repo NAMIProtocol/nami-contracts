@@ -57,7 +57,10 @@ pub enum QueryMsg {
 
 #[cw_serde]
 pub enum CallbackType {
-    AfterReallocate { swap_to: Addr, min_return: Option<Uint128> },
+    AfterReallocate {
+        swap_to: Addr,
+        min_return: Option<Uint128>,
+    },
 }
 
 #[cw_serde]
