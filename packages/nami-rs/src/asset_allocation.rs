@@ -16,6 +16,7 @@ pub struct AssetAllocation<T: Oracle> {
     pub swap_contract: Option<String>,
     pub oracle: T,
     pub threshold: Decimal,
+    pub slippage: Decimal,
 }
 
 impl<T: Oracle> AssetAllocation<T> {
@@ -25,6 +26,7 @@ impl<T: Oracle> AssetAllocation<T> {
         swap_contract: Option<String>,
         oracle: T,
         threshold: Decimal,
+        slippage: Decimal,
     ) -> Self {
         Self {
             denom,
@@ -32,6 +34,7 @@ impl<T: Oracle> AssetAllocation<T> {
             swap_contract,
             oracle,
             threshold,
+            slippage,
         }
     }
 
@@ -71,12 +74,19 @@ impl<T: Oracle> AssetAllocation<T> {
             return Ok(None);
         }
 
-        let (delta, unit_price, denom, available) = if curr_val > tgt_val {
-            (curr_val - tgt_val, price, &self.denom, bal)
+        let (delta, unit_price, slip_price, denom, available) = if curr_val > tgt_val {
+            (
+                curr_val - tgt_val,
+                price,
+                quote_snapshot.1,
+                &self.denom,
+                bal,
+            )
         } else {
             (
                 tgt_val - curr_val,
                 quote_snapshot.1,
+                price,
                 &quote_entry.denom,
                 quote_snapshot.0,
             )
@@ -93,11 +103,18 @@ impl<T: Oracle> AssetAllocation<T> {
             None => return Ok(None),
         };
 
+        let min_return = Some(
+            delta
+                .checked_mul(Decimal::one().checked_sub(self.slippage)?)?
+                .checked_div(slip_price)?
+                .to_uint_floor(),
+        );
+
         let msg = WasmMsg::Execute {
             contract_addr,
             msg: to_json_binary(&fin::ExecuteMsg::Swap(SwapRequest {
                 to: None,
-                min_return: None,
+                min_return,
                 callback: None,
             }))?,
             funds,
@@ -128,6 +145,7 @@ impl<T: Oracle> AssetAllocation<T> {
         } else {
             return Err(AssetAllocationError::NoSwapContract {});
         };
+
         Ok(WasmMsg::Execute {
             contract_addr: swap_contract.clone(),
             msg: to_json_binary(&fin::ExecuteMsg::Swap(SwapRequest {
@@ -212,6 +230,7 @@ mod tests {
             Some("base_swap".into()),
             DummyOracle(Decimal::one()),
             Decimal::percent(0),
+            Decimal::percent(1),
         );
         let total = Decimal::from_ratio(2_000_000u128, 1u128);
         let base_snap = base.snapshot(&addr, &q).unwrap();
@@ -226,6 +245,7 @@ mod tests {
                     Some("btc_swap".into()),
                     DummyOracle(Decimal::from_str("100000").unwrap()),
                     Decimal::percent(0),
+                    Decimal::percent(1),
                 ),
                 Some("btc_swap"),
             ),
@@ -237,6 +257,7 @@ mod tests {
                     Some("eth_swap".into()),
                     DummyOracle(Decimal::from_str("2000").unwrap()),
                     Decimal::percent(0),
+                    Decimal::percent(1),
                 ),
                 Some("eth_swap"),
             ),
@@ -248,6 +269,7 @@ mod tests {
             Some("swap".into()),
             DummyOracle(Decimal::zero()),
             Decimal::percent(100),
+            Decimal::percent(1),
         );
         let res = zero_price
             .rebalance_msg(&addr, &q, total, &base, base_snap)
@@ -287,6 +309,7 @@ mod tests {
                     None,
                     DummyOracle(Decimal::one()),
                     Decimal::zero(),
+                    Decimal::percent(1),
                 ),
                 Uint128::new(1),
                 Some("No swap contract"),
@@ -299,6 +322,7 @@ mod tests {
                     Some("swap".into()),
                     DummyOracle(Decimal::one()),
                     Decimal::zero(),
+                    Decimal::percent(1),
                 ),
                 Uint128::new(2_000_000),
                 Some("Insufficient funds"),
@@ -311,6 +335,7 @@ mod tests {
                     Some("swap".into()),
                     DummyOracle(Decimal::one()),
                     Decimal::zero(),
+                    Decimal::percent(1),
                 ),
                 Uint128::new(100),
                 None,
@@ -358,6 +383,7 @@ mod tests {
             Some("base_swap".into()),
             DummyOracle(Decimal::one()),
             Decimal::percent(0),
+            Decimal::percent(1),
         );
         let total = Decimal::from_ratio(2_000_000u128, 1u128);
         let base_snap = base.snapshot(&addr, &q).unwrap();
@@ -369,6 +395,7 @@ mod tests {
             Some("swap".into()),
             DummyOracle(Decimal::from_str("100000").unwrap()),
             Decimal::percent(100),
+            Decimal::percent(1),
         );
         assert!(skip
             .rebalance_msg(&addr, &q, total, &base, base_snap.clone())
@@ -382,6 +409,7 @@ mod tests {
             None,
             DummyOracle(Decimal::from_str("100000").unwrap()),
             Decimal::percent(0),
+            Decimal::percent(1),
         );
         assert!(no_swap
             .rebalance_msg(&addr, &q, total, &base, base_snap.clone())
@@ -395,6 +423,7 @@ mod tests {
             Some("eth_swap".into()),
             DummyOracle(Decimal::from_str("2000").unwrap()),
             Decimal::percent(0),
+            Decimal::percent(1),
         );
         assert!(buy_insuf
             .rebalance_msg(&addr, &q, total, &base, base_snap.clone())
@@ -416,6 +445,7 @@ mod tests {
             Some("swap".into()),
             DummyOracle(Decimal::one()),
             Decimal::zero(),
+            Decimal::percent(1),
         );
         assert!(matches!(
             alloc

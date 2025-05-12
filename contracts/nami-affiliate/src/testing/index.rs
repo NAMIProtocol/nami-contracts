@@ -50,6 +50,7 @@ pub fn setup(balances: Vec<(&str, Vec<Coin>)>) -> TestEnv {
                     "USDC-0XA0B86991C6218B36C1D19D4A2E9EB0CE3606EB48",
                 )),
                 Decimal::zero(),
+                Decimal::percent(1),
             )],
         },
     )

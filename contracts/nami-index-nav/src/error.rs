@@ -51,6 +51,9 @@ pub enum ContractError {
     #[error("Swap Contract needed for non-quote allocation")]
     InvalidSwapContract,
 
+    #[error("Slippage must be greater than 0 and less than 1")]
+    SlippageOne,
+
     #[error("Invalid: {0}")]
     Invalid(String),
     // Add any other custom errors you like here.

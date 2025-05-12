@@ -32,6 +32,7 @@ pub enum SudoMsg {
         contract: Option<String>,
         oracle: OracleConfig,
         threshold: Decimal,
+        slippage: Decimal,
     },
     RemoveAllocation {
         denom: String,

@@ -79,7 +79,14 @@ impl MockNamiIndexNav {
     pub fn sudo_add_allocation(
         &self,
         app: &mut RujiraApp,
-        allocation: (String, Decimal, Option<String>, OracleConfig, Decimal),
+        allocation: (
+            String,
+            Decimal,
+            Option<String>,
+            OracleConfig,
+            Decimal,
+            Decimal,
+        ),
     ) -> anyhow::Result<AppResponse> {
         app.wasm_sudo(
             self.address.clone(),
@@ -89,6 +96,7 @@ impl MockNamiIndexNav {
                 contract: allocation.2,
                 oracle: allocation.3,
                 threshold: allocation.4,
+                slippage: allocation.5,
             },
         )
     }

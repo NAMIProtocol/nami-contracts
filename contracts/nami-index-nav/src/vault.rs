@@ -73,6 +73,10 @@ impl<'a> Vault<'a> {
             );
             allocation.oracle.price(*self.querier)?;
         }
+        ensure!(
+            allocation.slippage.gt(&Decimal::zero()) && allocation.slippage.lt(&Decimal::one()),
+            ContractError::SlippageOne
+        );
         ALLOCATIONS.save(storage, &allocation.denom, &allocation)?;
         Ok(())
     }

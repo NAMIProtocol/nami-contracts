@@ -30,11 +30,13 @@ fn base_lifecycle() {
                 "btc-btc".to_string(),
                 Decimal::percent(50),
                 Decimal::percent(0),
+                Decimal::percent(20),
             ),
             (
                 "eth-usdc".to_string(),
                 Decimal::percent(50),
                 Decimal::percent(0),
+                Decimal::percent(1),
             ),
         ],
         None,
@@ -206,11 +208,13 @@ fn lifecycle() {
                 "btc-btc".to_string(),
                 Decimal::percent(50),
                 Decimal::percent(0),
+                Decimal::percent(25), // set the slippage very high to make sure the swap succede with price 91219 and oracle price 100100
             ),
             (
                 "eth-usdc".to_string(),
                 Decimal::percent(50),
                 Decimal::percent(0),
+                Decimal::percent(25), // set the slippage very high to make sure the swap succede with price 91219 and oracle price 100100
             ),
         ],
         Some(Decimal::percent(1)), // 1% annual management fee
@@ -254,13 +258,13 @@ fn lifecycle() {
                 &mut test_env.app,
                 &owner,
                 vec![
-                    coin(10_000_000, "eth-usdc"),
-                    coin(10_000_000, "btc-btc"),
+                    coin(1_000_000_000, "eth-usdc"),
+                    coin(1_000_000_000, "btc-btc"),
                     coin(1_000_000_000, "eth-eth"),
                 ],
                 fair_price_btc,
-                &[1u64],
-                Uint128::from(100_000u128),
+                &[1u64, 2u64, 3u64],
+                Uint128::from(10_000_000u128),
             )
             .unwrap();
     }
@@ -386,10 +390,13 @@ fn lifecycle() {
         .populate_orderbook(
             &mut test_env.app,
             &owner,
-            vec![coin(10_000_000, "eth-usdc"), coin(2_000_000_000, "eth-eth")],
+            vec![
+                coin(1_000_000_000, "eth-usdc"),
+                coin(1_000_000_000, "eth-eth"),
+            ],
             fair_price_eth,
             &[1u64],
-            Uint128::from(100_000u128),
+            Uint128::from(1_000_000u128),
         )
         .unwrap();
 
@@ -403,6 +410,7 @@ fn lifecycle() {
                 Some(test_env.swaps[0].1.address.to_string()),
                 OracleConfig::Layer1(Layer1Asset::new(Chain::Btc, "BTC")),
                 Decimal::percent(0),
+                Decimal::percent(25),
             ),
         )
         .unwrap();
@@ -419,6 +427,7 @@ fn lifecycle() {
                     "USDC-0XA0B86991C6218B36C1D19D4A2E9EB0CE3606EB48",
                 )),
                 Decimal::percent(0),
+                Decimal::percent(25),
             ),
         )
         .unwrap();
@@ -432,6 +441,7 @@ fn lifecycle() {
                 Some(eth_eth_swap.address.to_string()),
                 OracleConfig::Layer1(Layer1Asset::new(Chain::Eth, "ETH")),
                 Decimal::percent(0),
+                Decimal::percent(25), // set the slippage very high to make sure the swap succeed
             ),
         )
         .unwrap();
@@ -539,11 +549,13 @@ fn invalid_allocation_weights() {
                 "btc-btc".to_string(),
                 Decimal::percent(60), // Weights sum to 1.1
                 Decimal::percent(0),
+                Decimal::percent(1),
             ),
             (
                 "eth-usdc".to_string(),
                 Decimal::percent(50),
                 Decimal::percent(0),
+                Decimal::percent(1),
             ),
         ],
         None,
@@ -576,11 +588,13 @@ fn cannot_remove_allocation_with_non_zero_balance() {
                 "btc-btc".to_string(),
                 Decimal::percent(50),
                 Decimal::percent(0),
+                Decimal::percent(1),
             ),
             (
                 "eth-usdc".to_string(),
                 Decimal::percent(50),
                 Decimal::percent(0),
+                Decimal::percent(1),
             ),
         ],
         Some(Decimal::percent(1)),
@@ -652,11 +666,13 @@ fn add_contract_wrong_denom() {
                 "btc-btc".to_string(),
                 Decimal::percent(50),
                 Decimal::percent(0),
+                Decimal::percent(1),
             ),
             (
                 "eth-usdc".to_string(),
                 Decimal::percent(50),
                 Decimal::percent(0),
+                Decimal::percent(1),
             ),
         ],
         Some(Decimal::percent(1)),
@@ -677,6 +693,7 @@ fn add_contract_wrong_denom() {
                 Some(wrong_denom_contract.address.to_string()),
                 OracleConfig::Layer1(Layer1Asset::new(Chain::Btc, "BTC")),
                 Decimal::percent(0),
+                Decimal::percent(1),
             ),
         )
         .unwrap_err();
@@ -704,11 +721,13 @@ fn base_lifecycle_with_base_denom() {
                 "btc-btc".to_string(),
                 Decimal::percent(50),
                 Decimal::percent(0),
+                Decimal::percent(1),
             ),
             (
                 "eth-usdc".to_string(),
                 Decimal::percent(50),
                 Decimal::percent(0),
+                Decimal::percent(1),
             ),
         ],
         None,

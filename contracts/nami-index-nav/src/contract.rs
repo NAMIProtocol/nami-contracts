@@ -145,10 +145,11 @@ pub fn sudo(deps: DepsMut, env: Env, msg: SudoMsg) -> Result<Response, ContractE
             contract,
             oracle,
             threshold,
+            slippage,
         } => {
             vault.save_allocation(
                 deps.storage,
-                AssetAllocation::new(denom, weight, contract, oracle, threshold),
+                AssetAllocation::new(denom, weight, contract, oracle, threshold, slippage),
             )?;
             Ok(Response::default())
         }
