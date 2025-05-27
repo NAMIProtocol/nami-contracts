@@ -1130,6 +1130,7 @@ fn test_callback_unauthorized_sender() {
     // Create a callback message
     let callback_type = CallbackType::AfterReallocate {
         swap_to: auto_swap.clone(),
+        amount: Uint128::from(128u128),
         min_return: Some(Uint128::from(128u128)),
     };
     let callback_msg = ExecuteMsg::Callback(CallbackMsg {
@@ -1183,6 +1184,7 @@ fn test_callback_empty_allocations() {
 
     let callback_type = CallbackType::AfterReallocate {
         swap_to: mock_contract.clone(),
+        amount: Uint128::from(128u128),
         min_return: Some(Uint128::from(128u128)),
     };
     let callback_msg = ExecuteMsg::Callback(CallbackMsg {
@@ -1201,4 +1203,120 @@ fn test_callback_empty_allocations() {
     // Verify the callback fails with Unauthorized error
     assert!(res.is_err(), "Callback with empty allocations should fail");
     assert_eq!(res.unwrap_err().root_cause().to_string(), "Unauthorized");
+}
+
+#[test]
+fn isolating_reallocate_funds() {
+    // Scope of the test is to demonstrate that reallocate funds
+    // only uses the correct amount of funds for the reallocation
+    // excluding airdrops/erroneus sends to the index
+
+    // Initialize user balances
+    let balances = vec![
+        (
+            "user",
+            vec![
+                coin(20_000_000_000, "nami"),
+                coin(20_000_000_000, "auto"),
+                coin(20_000_000_000, "lqdy"),
+            ],
+        ),
+        (
+            "owner",
+            vec![
+                coin(100_000_000_000, "nami"),
+                coin(100_000_000_000, "auto"),
+                coin(100_000_000_000, "lqdy"),
+                coin(500_000_000_000, "eth-usdc"),
+            ],
+        ),
+    ];
+    let mut test_env = index::setup(
+        balances,
+        "eth-usdc".to_string(),
+        vec![
+            ("nami".to_string(), Uint128::from(100_000u128)),
+            ("auto".to_string(), Uint128::from(100_000u128)),
+            ("lqdy".to_string(), Uint128::from(100_000u128)),
+        ],
+        Some(Decimal::percent(1)),
+        None,
+    );
+
+    // send some funds to the index normal bank send
+    test_env.app.add_balance(
+        test_env.index.address.as_str(),
+        vec![coin(10_000_000u128, "eth-usdc")],
+        false,
+    );
+
+    // Successful deposit correct proportion
+    let res = test_env
+        .index
+        .execute_deposit(
+            &mut test_env.app,
+            "user",
+            vec![
+                coin(10_000_000u128, "nami"),
+                coin(10_000_000u128, "auto"),
+                coin(10_000_000u128, "lqdy"),
+            ],
+        )
+        .unwrap();
+    res.assert_event(&Event::new("wasm-nami-index-fixed/deposit"));
+
+    // query status to see the inflation Zero because no execution
+    let res = test_env.index.query_status(&mut test_env.app).unwrap();
+    assert_eq!(res.total_shares, Uint128::from(100u128));
+
+    // populate orderbooks
+    let owner = test_env.app.api().addr_make("owner");
+    test_env.swaps.iter().for_each(|swap| {
+        swap.1
+            .populate_orderbook(
+                &mut test_env.app,
+                &owner,
+                vec![
+                    coin(100_000_000_000, "eth-usdc"),
+                    coin(100_000_000_000, swap.0.clone()),
+                ],
+                Decimal::from_str("100").unwrap(),
+                &[1u64, 2u64, 3u64],
+                Uint128::from(10_000_000_000u128),
+            )
+            .unwrap();
+    });
+
+    //  try reallocation
+    let res = test_env
+        .index
+        .sudo_reallocate(
+            &mut test_env.app,
+            "auto",
+            "lqdy",
+            Uint128::from(50_000u128),
+            None,
+        )
+        .unwrap();
+    res.assert_event(&Event::new("wasm-nami-index-fixed/reallocate"));
+
+    // query status to see the new allocation
+    // selling auto for usdc price 0.99 gets 495_000 usdc
+    // selling usdc for lqdy price 1.00 gets 495_000 lqdy
+    let res = test_env.index.query_status(&mut test_env.app).unwrap();
+    assert_eq!(res.total_shares, Uint128::from(100u128));
+    assert_eq!(
+        res.allocation,
+        vec![
+            ("auto".to_string(), Uint128::from(50_000u128)),
+            ("lqdy".to_string(), Uint128::from(149_500u128)),
+            ("nami".to_string(), Uint128::from(100_000u128))
+        ]
+    );
+
+    // query balance index to see that the eth-usdc previosly sent are still there
+    let res = test_env
+        .app
+        .query_balance(&test_env.index.address.as_str(), "eth-usdc", false);
+    assert_eq!(res, Uint128::from(10_000_000u128));
 }

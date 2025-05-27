@@ -59,6 +59,7 @@ pub enum QueryMsg {
 pub enum CallbackType {
     AfterReallocate {
         swap_to: Addr,
+        amount: Uint128,
         min_return: Option<Uint128>,
     },
 }

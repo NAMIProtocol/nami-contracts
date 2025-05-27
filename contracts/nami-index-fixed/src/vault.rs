@@ -5,7 +5,7 @@ use cosmwasm_std::{
 };
 use cw_storage_plus::Map;
 use nami_rs::index_fixed::{CallbackType, VaultStatusResponse};
-use rujira_rs::fin::{self, SwapRequest};
+use rujira_rs::fin::{self, SimulationResponse, SwapRequest};
 use std::collections::HashMap;
 
 static ALLOCATIONS: Map<&str, (Uint128, Addr)> = Map::new("allocations");
@@ -127,6 +127,7 @@ impl<'a> Vault<'a> {
 
     pub fn reallocate(
         storage: &mut dyn Storage,
+        querier: &QuerierWrapper,
         from: &str,
         to: &str,
         weight: Uint128,
@@ -140,8 +141,13 @@ impl<'a> Vault<'a> {
 
         let amount_to_swap = curr_weight.checked_sub(weight)?.checked_mul(total_shares)?;
 
+        let simulation_response: SimulationResponse = querier.query_wasm_smart(
+            swap_from.clone(),
+            &fin::QueryMsg::Simulate(Coin::new(amount_to_swap, from)),
+        )?;
         let callback = to_json_binary(&CallbackType::AfterReallocate {
             swap_to,
+            amount: simulation_response.returned,
             min_return,
         })?;
 

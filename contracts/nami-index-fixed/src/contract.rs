@@ -116,11 +116,9 @@ pub fn execute(
             match callback_type {
                 CallbackType::AfterReallocate {
                     swap_to,
+                    amount,
                     min_return,
                 } => {
-                    let coin = deps
-                        .querier
-                        .query_balance(&env.contract.address, &config.quote_denom)?;
                     let msg = WasmMsg::Execute {
                         contract_addr: swap_to.to_string(),
                         msg: to_json_binary(&fin::ExecuteMsg::Swap(SwapRequest {
@@ -128,7 +126,7 @@ pub fn execute(
                             to: None,
                             callback: None,
                         }))?,
-                        funds: vec![coin],
+                        funds: coins(amount.into(), config.quote_denom),
                     };
                     let run_msg = WasmMsg::Execute {
                         contract_addr: env.contract.address.to_string(),
@@ -168,8 +166,15 @@ pub fn sudo(deps: DepsMut, env: Env, msg: SudoMsg) -> Result<Response, ContractE
             weight,
             min_return,
         } => {
-            let msg =
-                Vault::reallocate(deps.storage, &from, &to, weight, total_supply, min_return)?;
+            let msg = Vault::reallocate(
+                deps.storage,
+                &deps.querier,
+                &from,
+                &to,
+                weight,
+                total_supply,
+                min_return,
+            )?;
             let response = Response::new().add_event(event_reallocate(from, to, weight));
             Ok(response.add_message(msg))
         }
