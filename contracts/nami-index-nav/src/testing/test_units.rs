@@ -291,7 +291,7 @@ fn lifecycle() {
         &mut test_env.app,
         "user",
         coins(1_000_000, rcpt_denom.clone()),
-        Some(Decimal::from_str("0.99999").unwrap()),
+        Some(Decimal::from_str("0.0000001").unwrap()),
     );
     assert!(res.is_err());
     assert!(res
@@ -886,4 +886,242 @@ fn base_lifecycle_with_base_denom() {
             ),
         ]
     );
+}
+
+#[test]
+fn test_slippage_scenarios() {
+    // Initialize user balances
+    let balances = vec![
+        ("user", vec![coin(10_000_000_000, "eth-usdc")]),
+        (
+            "owner",
+            vec![
+                coin(100_000_000_000, "eth-usdc"),
+                coin(100_000_000_000, "btc-btc"),
+            ],
+        ),
+    ];
+    let mut test_env = index::setup(
+        balances.clone(),
+        "eth-usdc".to_string(),
+        vec![
+            (
+                "btc-btc".to_string(),
+                Decimal::percent(50),
+                Decimal::percent(0),
+                Decimal::percent(1),
+            ),
+            (
+                "eth-usdc".to_string(),
+                Decimal::percent(50),
+                Decimal::percent(0),
+                Decimal::percent(1),
+            ),
+        ],
+        None,
+        None,
+        "quote",
+    )
+        .unwrap();
+    let rcpt_denom = format!("x/nami-index-{}-rcpt", test_env.index.address);
+
+    // Deposit
+    let deposit_amount = Uint128::from(5_000_000u128);
+    test_env
+        .index
+        .execute_deposit(&mut test_env.app, "user", coins(deposit_amount.u128(), "eth-usdc"))
+        .unwrap();
+
+    // Populate orderbook for rebalancing
+    let owner = test_env.app.api().addr_make("owner");
+    let fair_price = Decimal::from_str("91219").unwrap(); // btc
+    for (_denom, mock_fin) in &test_env.swaps {
+        mock_fin
+            .populate_orderbook(
+                &mut test_env.app,
+                &owner,
+                vec![
+                    coin(1_000_000_000, "eth-usdc"),
+                    coin(1_000_000_000, "btc-btc"),
+                ],
+                fair_price,
+                &[1u64, 2u64, 3u64],
+                Uint128::from(10_000_000u128),
+            )
+            .unwrap();
+    }
+
+    // Rebalance to allocate 50% to btc-btc
+    test_env
+        .index
+        .execute_run(&mut test_env.app, "user")
+        .unwrap();
+
+    // Check contract balances after rebalance
+    let usdc_balance = test_env
+        .app
+        .query_balance(&test_env.index.address.as_str(), "eth-usdc", false);
+    let btc_balance = test_env
+        .app
+        .query_balance(&test_env.index.address.as_str(), "btc-btc", false);
+    assert!(usdc_balance < deposit_amount, "USDC balance should decrease after rebalance");
+    assert!(btc_balance > Uint128::zero(), "BTC balance should increase after rebalance");
+
+    // 1% slippage
+    let withdraw_amount = Uint128::from(1_000_000u128);
+    let slippage = Decimal::percent(1);
+    let res = test_env
+        .index
+        .execute_withdraw(
+            &mut test_env.app,
+            "user",
+            coins(withdraw_amount.u128(), rcpt_denom.clone()),
+            Some(slippage),
+        )
+        .unwrap();
+    res.assert_event(&Event::new("wasm-nami-index-nav/withdraw"));
+    res.assert_event(&Event::new("burn"));
+
+    let usdc_balance_after = test_env.app.query_balance("user", "eth-usdc", true);
+    let expected_min = withdraw_amount
+        .checked_mul(Uint128::from(99u128))
+        .unwrap()
+        .checked_div(Uint128::from(100u128))
+        .unwrap();
+    assert!(
+        usdc_balance_after >= Uint128::from(10_000_000_000u128 - 5_000_000u128) + expected_min,
+        "User should receive at least min_amount with 1% slippage"
+    );
+
+    // 0.0001% slippage - should fail
+    let tight_slippage = Decimal::from_str("0.000001").unwrap();
+    let res = test_env.index.execute_withdraw(
+        &mut test_env.app,
+        "user",
+        coins(withdraw_amount.u128(), rcpt_denom.clone()),
+        Some(tight_slippage),
+    );
+    assert!(res.is_err());
+    assert!(res
+        .unwrap_err()
+        .root_cause()
+        .to_string()
+        .contains("SlippageExceeded"));
+
+    // 0 slippage - should fail
+    let res = test_env.index.execute_withdraw(
+        &mut test_env.app,
+        "user",
+        coins(withdraw_amount.u128(), rcpt_denom.clone()),
+        Some(Decimal::zero()),
+    );
+    assert!(res.is_err());
+    assert!(res
+        .unwrap_err()
+        .root_cause()
+        .to_string()
+        .contains("SlippageExceeded"));
+
+    // 0.1% slippage
+    let small_slippage = Decimal::from_str("0.001").unwrap();
+    let res = test_env
+        .index
+        .execute_withdraw(
+            &mut test_env.app,
+            "user",
+            coins(withdraw_amount.u128(), rcpt_denom.clone()),
+            Some(small_slippage),
+        )
+        .unwrap();
+    res.assert_event(&Event::new("wasm-nami-index-nav/withdraw"));
+    res.assert_event(&Event::new("burn"));
+    let usdc_balance_after = test_env.app.query_balance("user", "eth-usdc", true);
+    let expected_min = withdraw_amount
+        .checked_mul(Uint128::from(999u128))
+        .unwrap()
+        .checked_div(Uint128::from(1000u128))
+        .unwrap();
+    assert!(
+        usdc_balance_after >= Uint128::from(10_000_000_000u128 - 5_000_000u128) + expected_min,
+        "User should receive at least min_amount with 0.1% slippage"
+    );
+
+    // 100% slippage
+    let res = test_env
+        .index
+        .execute_withdraw(
+            &mut test_env.app,
+            "user",
+            coins(withdraw_amount.u128(), rcpt_denom.clone()),
+            Some(Decimal::one()),
+        )
+        .unwrap();
+    res.assert_event(&Event::new("wasm-nami-index-nav/withdraw"));
+
+    // Invalid slippage (1.1) - should fail
+    let invalid_slippage = Decimal::from_str("1.1").unwrap();
+    let res = test_env.index.execute_withdraw(
+        &mut test_env.app,
+        "user",
+        coins(withdraw_amount.u128(), rcpt_denom.clone()),
+        Some(invalid_slippage),
+    );
+    assert!(res.is_err());
+    assert!(res
+        .unwrap_err()
+        .root_cause()
+        .to_string()
+        .contains("Cannot Sub with given operands"));
+
+    // 25% slippage
+    let mut test_env_high_slippage = index::setup(
+        balances.clone(),
+        "eth-usdc".to_string(),
+        vec![
+            (
+                "btc-btc".to_string(),
+                Decimal::percent(50),
+                Decimal::percent(0),
+                Decimal::percent(25),
+            ),
+            (
+                "eth-usdc".to_string(),
+                Decimal::percent(50),
+                Decimal::percent(0),
+                Decimal::percent(25),
+            ),
+        ],
+        None,
+        None,
+        "quote",
+    )
+        .unwrap();
+    test_env_high_slippage
+        .index
+        .execute_deposit(&mut test_env_high_slippage.app, "user", coins(deposit_amount.u128(), "eth-usdc"))
+        .unwrap();
+    for (_denom, mock_fin) in &test_env_high_slippage.swaps {
+        mock_fin
+            .populate_orderbook(
+                &mut test_env_high_slippage.app,
+                &owner,
+                vec![
+                    coin(1_000_000_000, "eth-usdc"),
+                    coin(1_000_000_000, "btc-btc"),
+                ],
+                fair_price, // 91219
+                &[1u64, 2u64, 3u64],
+                Uint128::from(10_000_000u128),
+            )
+            .unwrap();
+    }
+    let res = test_env_high_slippage
+        .index
+        .execute_run(&mut test_env_high_slippage.app, "user")
+        .unwrap();
+    res.assert_event(&Event::new("wasm-nami-index-nav/run"));
+    let btc_balance = test_env_high_slippage
+        .app
+        .query_balance(&test_env_high_slippage.index.address.as_str(), "btc-btc", false);
+    assert!(btc_balance > Uint128::zero(), "Rebalance should swap to BTC with high slippage");
 }

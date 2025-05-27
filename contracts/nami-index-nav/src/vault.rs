@@ -162,9 +162,9 @@ impl<'a> Vault<'a> {
     ) -> Result<Vec<CosmosMsg>, ContractError> {
         let (quote, others) = self.load_allocations(storage)?;
         let (quote_bal, quote_price, _) = quote.snapshot(&self.address, self.querier)?;
-        let slip = slippage.unwrap_or_default();
+        let slip = slippage.unwrap_or(Decimal::one());
         let min_amount = Decimal::from_ratio(value, Uint128::one())
-            .checked_mul(slip)
+            .checked_mul(Decimal::one().checked_sub(slip)?)
             .unwrap_or_default()
             .to_uint_floor();
 
