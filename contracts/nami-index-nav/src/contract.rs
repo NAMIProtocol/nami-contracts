@@ -34,7 +34,7 @@ pub fn instantiate(
     config.save(deps.storage)?;
     let rcpt = TokenFactory::new(
         &env,
-        format!("nami-index-{}-rcpt", env.contract.address).as_str(),
+        format!("nami-index-nav-{}-rcpt", env.contract.address).as_str(),
     );
     FEE_MANAGER.save(deps.storage, &FeeManager::new(msg.fees, env.block.time)?)?;
     let vault = Vault::new(
@@ -64,7 +64,7 @@ pub fn execute(
     );
     let rcpt = TokenFactory::new(
         &env,
-        format!("nami-index-{}-rcpt", env.contract.address).as_str(),
+        format!("nami-index-nav-{}-rcpt", env.contract.address).as_str(),
     );
     let aum_fee = fee_manager.aum_fee(env.block.time, rcpt.supply(deps.querier)?)?;
     let mut response = Response::new();
@@ -174,7 +174,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> Result<Binary, ContractErro
     let config = Config::load(deps.storage)?;
     let rcpt = TokenFactory::new(
         &env,
-        format!("nami-index-{}-rcpt", env.contract.address).as_str(),
+        format!("nami-index-nav-{}-rcpt", env.contract.address).as_str(),
     );
     let vault = Vault::new(
         deps.api,

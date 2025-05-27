@@ -38,7 +38,7 @@ fn base_test() {
         None,
         None,
     );
-    let rcpt_denom = format!("x/nami-index-{}-rcpt", test_env.index.address);
+    let rcpt_denom = format!("x/nami-index-fixed-{}-rcpt", test_env.index.address);
 
     // Successful deposit correct proportion
     let res = test_env
@@ -101,7 +101,7 @@ fn lifecycle() {
         Some(Decimal::percent(1)),
         None,
     );
-    let rcpt_denom = format!("x/nami-index-{}-rcpt", test_env.index.address);
+    let rcpt_denom = format!("x/nami-index-fixed-{}-rcpt", test_env.index.address);
 
     // Successful deposit correct proportion
     let res = test_env
@@ -897,7 +897,7 @@ fn minimal_withdraw_user_incur_loss_of_funds() {
         None,
         Some(Decimal::percent(2)),
     );
-    let rcpt_denom = format!("x/nami-index-{}-rcpt", test_env.index.address);
+    let rcpt_denom = format!("x/nami-index-fixed-{}-rcpt", test_env.index.address);
 
     // Successful deposit correct proportion
     let res = test_env
@@ -965,7 +965,7 @@ fn test_withdraw_fee_transfer() {
         None,
         Some(Decimal::percent(2)),
     );
-    let rcpt_denom = format!("x/nami-index-{}-rcpt", test_env.index.address);
+    let rcpt_denom = format!("x/nami-index-fixed-{}-rcpt", test_env.index.address);
     let user_addr = test_env.app.api().addr_make("user");
     let fee_collector_addr = test_env.app.api().addr_make("fee_collector");
 

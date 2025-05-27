@@ -63,7 +63,7 @@ fn lifecycle() {
 
     let rcpt_balance = test_env.app.query_balance(
         "sender",
-        format!("x/nami-index-{}-rcpt", test_env.target_contract).as_str(),
+        format!("x/nami-index-nav-{}-rcpt", test_env.target_contract).as_str(),
         true,
     );
     assert_eq!(rcpt_balance, Uint128::new(900));
@@ -293,7 +293,7 @@ fn lifecycle_index_fixed() {
     let affiliate_balance = test_env.app.query_balance("affiliate", "eth-usdc", true);
     assert_eq!(affiliate_balance, Uint128::new(17_000)); // 10% of 170_000
 
-    let rcpt_denom = format!("x/nami-index-{}-rcpt", test_env.index.address);
+    let rcpt_denom = format!("x/nami-index-fixed-{}-rcpt", test_env.index.address);
     let user_balance = test_env
         .app
         .query_balance("user", &rcpt_denom.clone(), true);
@@ -344,7 +344,7 @@ fn lifecycle_index_fixed() {
     let affiliate_balance = test_env.app.query_balance("affiliate", "eth-usdc", true);
     assert_eq!(affiliate_balance, Uint128::new(35_000)); // 10% of 180_000 + 17_000 (old)
 
-    let rcpt_denom = format!("x/nami-index-{}-rcpt", test_env.index.address);
+    let rcpt_denom = format!("x/nami-index-fixed-{}-rcpt", test_env.index.address);
     let user_balance = test_env
         .app
         .query_balance("user", &rcpt_denom.clone(), true);

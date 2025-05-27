@@ -44,7 +44,7 @@ fn base_lifecycle() {
         "quote",
     )
     .unwrap();
-    let rcpt_denom = format!("x/nami-index-{}-rcpt", test_env.index.address);
+    let rcpt_denom = format!("x/nami-index-nav-{}-rcpt", test_env.index.address);
 
     // Successful deposit
     let res = test_env
@@ -222,7 +222,7 @@ fn lifecycle() {
         "quote",
     )
     .unwrap();
-    let rcpt_denom = format!("x/nami-index-{}-rcpt", test_env.index.address);
+    let rcpt_denom = format!("x/nami-index-nav-{}-rcpt", test_env.index.address);
     let fee_collector_addr = test_env.app.api().addr_make("fee_collector").to_string();
 
     // Successful deposit
@@ -735,7 +735,7 @@ fn base_lifecycle_with_base_denom() {
         "base",
     )
     .unwrap();
-    let rcpt_denom = format!("x/nami-index-{}-rcpt", test_env.index.address);
+    let rcpt_denom = format!("x/nami-index-nav-{}-rcpt", test_env.index.address);
 
     // Successful deposit
     let res = test_env
@@ -923,7 +923,7 @@ fn test_slippage_scenarios() {
         "quote",
     )
     .unwrap();
-    let rcpt_denom = format!("x/nami-index-{}-rcpt", test_env.index.address);
+    let rcpt_denom = format!("x/nami-index-nav-{}-rcpt", test_env.index.address);
 
     // Deposit
     let deposit_amount = Uint128::from(5_000_000u128);

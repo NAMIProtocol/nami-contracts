@@ -38,7 +38,7 @@ fn base_test() {
         None,
         None,
     );
-    let rcpt_denom = format!("x/nami-index-{}-rcpt", test_env.index.address);
+    let rcpt_denom = format!("x/nami-index-fixed-{}-rcpt", test_env.index.address);
 
     // populate swap mocks so that fair price is 1 for everyone
     let owner = test_env.app.api().addr_make("owner");
@@ -85,7 +85,7 @@ fn base_test() {
             ],
         )
         .unwrap();
-    let rcpt_denom = format!("x/nami-index-{}-rcpt", test_env.index.address);
+    let rcpt_denom = format!("x/nami-index-fixed-{}-rcpt", test_env.index.address);
 
     // Successful withdraw correct proportion
     let res = test_env
@@ -279,7 +279,7 @@ fn test_swap_with_extra_tokens() {
         None,
         None,
     );
-    let rcpt_denom = format!("x/nami-index-{}-rcpt", test_env.index.address);
+    let rcpt_denom = format!("x/nami-index-fixed-{}-rcpt", test_env.index.address);
 
     // populate swap mocks so that fair price is 1 for everyone
     let owner = test_env.app.api().addr_make("owner");

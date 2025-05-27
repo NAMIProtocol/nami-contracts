@@ -19,7 +19,7 @@ impl Index {
     pub fn load(address: String, querier: &QuerierWrapper) -> StdResult<Self> {
         let status: index_fixed::VaultStatusResponse =
             querier.query_wasm_smart(&address, &index_fixed::QueryMsg::Status {})?;
-        let denom = format!("x/nami-index-{}-rcpt", address);
+        let denom = format!("x/nami-index-fixed-{}-rcpt", address);
         Ok(Self {
             address,
             allocation: status.allocation,

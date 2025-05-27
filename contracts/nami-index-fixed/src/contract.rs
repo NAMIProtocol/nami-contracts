@@ -37,7 +37,7 @@ pub fn instantiate(
     config.save(deps.storage)?;
     let rcpt = TokenFactory::new(
         &env,
-        format!("nami-index-{}-rcpt", env.contract.address).as_str(),
+        format!("nami-index-fixed-{}-rcpt", env.contract.address).as_str(),
     );
     FEE_MANAGER.save(deps.storage, &FeeManager::new(msg.fees, env.block.time)?)?;
     let vault = Vault::new(deps.api, &deps.querier, env.contract.address);
@@ -61,7 +61,7 @@ pub fn execute(
     let mut fee_manager = FEE_MANAGER.load(deps.storage)?;
     let rcpt = TokenFactory::new(
         &env,
-        format!("nami-index-{}-rcpt", env.contract.address).as_str(),
+        format!("nami-index-fixed-{}-rcpt", env.contract.address).as_str(),
     );
     let vault = Vault::new(deps.api, &deps.querier, env.contract.address.clone());
     let aum_fee = fee_manager.aum_fee(env.block.time, rcpt.supply(deps.querier)?)?;
@@ -153,7 +153,7 @@ pub fn sudo(deps: DepsMut, env: Env, msg: SudoMsg) -> Result<Response, ContractE
     let mut config = Config::load(deps.storage)?;
     let rcpt = TokenFactory::new(
         &env,
-        format!("nami-index-{}-rcpt", env.contract.address).as_str(),
+        format!("nami-index-fixed-{}-rcpt", env.contract.address).as_str(),
     );
     let total_supply = rcpt.supply(deps.querier)?;
     let vault = Vault::new(deps.api, &deps.querier, env.contract.address);
@@ -201,7 +201,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> Result<Binary, ContractErro
     let config = Config::load(deps.storage)?;
     let rcpt = TokenFactory::new(
         &env,
-        format!("nami-index-{}-rcpt", env.contract.address).as_str(),
+        format!("nami-index-fixed-{}-rcpt", env.contract.address).as_str(),
     );
     match msg {
         QueryMsg::Config {} => Ok(to_json_binary(&ConfigResponse::from(config))?),
