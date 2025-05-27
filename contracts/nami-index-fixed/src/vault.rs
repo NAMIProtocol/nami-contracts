@@ -48,9 +48,13 @@ impl<'a> Vault<'a> {
         let config: fin::ConfigResponse = self
             .querier
             .query_wasm_smart(&contract, &fin::QueryMsg::Config {})?;
+        let (quote, base) = (config.denoms.quote(), config.denoms.base());
         ensure!(
-            config.denoms.quote() == quote_denom || config.denoms.base() == quote_denom,
-            ContractError::InvalidQuoteDenom
+            // either (quote_denom, denom) == (quote, base)
+            (quote == quote_denom && base == denom)
+            // or flipped: (quote_denom, denom) == (base, quote)
+            || (base == quote_denom && quote == denom),
+            ContractError::InvalidDenomPair {}
         );
         ALLOCATIONS.save(storage, denom, &(weight, contract))?;
         Ok(())

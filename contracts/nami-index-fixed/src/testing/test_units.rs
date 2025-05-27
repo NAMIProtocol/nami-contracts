@@ -1320,3 +1320,137 @@ fn isolating_reallocate_funds() {
         .query_balance(&test_env.index.address.as_str(), "eth-usdc", false);
     assert_eq!(res, Uint128::from(10_000_000u128));
 }
+
+#[test]
+fn test_add_allocation_denom_validation() {
+    // Initialize user balances
+    let balances = vec![
+        (
+            "owner",
+            vec![
+                coin(200_000_000_000, "nami"),
+                coin(100_000_000_000, "auto"),
+                coin(300_000_000_000, "eth-usdc"),
+                coin(100_000_000_000, "invalid-denom"),
+                coin(100_000_000_000, "wrong-denom"),
+            ],
+        ),
+        (
+            "user",
+            vec![
+                coin(10_000_000_000, "nami"),
+                coin(10_000_000_000, "auto"),
+                coin(10_000_000_000, "eth-usdc"),
+            ],
+        ),
+    ];
+    let mut test_env = index::setup(
+        balances,
+        "eth-usdc".to_string(),
+        vec![
+            ("nami".to_string(), Uint128::from(50u128)),
+            ("auto".to_string(), Uint128::from(100u128)),
+        ],
+        None,
+        None,
+    );
+    let owner = test_env.app.api().addr_make("owner");
+
+    // Populate existing swap mocks
+    test_env.swaps.iter().for_each(|(denom, swap_mock)| {
+        let quote_denom = "eth-usdc".to_string();
+        let base_denom = denom.clone();
+        swap_mock
+            .populate_orderbook(
+                &mut test_env.app,
+                &owner,
+                vec![
+                    coin(100_000_000_000, quote_denom.clone()),
+                    coin(100_000_000_000, base_denom),
+                ],
+                Decimal::from_str("100").unwrap(),
+                &[1u64, 2u64, 3u64],
+                Uint128::from(1_000_000_000u128),
+            )
+            .unwrap();
+    });
+
+    // Valid pair (quote_denom = eth-usdc, denom = nami)
+    let nami_swap = test_env
+        .swaps
+        .iter()
+        .find(|(denom, _)| denom == "nami")
+        .unwrap();
+    test_env
+        .index
+        .sudo_add_allocation(
+            &mut test_env.app,
+            ("nami".to_string(), nami_swap.1.address.to_string()),
+        )
+        .unwrap();
+    let status = test_env.index.query_status(&mut test_env.app).unwrap();
+    assert!(
+        status.allocation.iter().any(|(denom, _)| denom == "nami"),
+        "Nami allocation not found"
+    );
+
+    // Valid flipped pair (quote_denom = eth-usdc, denom = nami, swap: quote = nami, base = eth-usdc)
+    let flipped_swap =
+        nami_rs_testing::mock_fin::MockFin::new_app_layer(&mut test_env.app, "eth-usdc", "nami");
+    flipped_swap
+        .populate_orderbook(
+            &mut test_env.app,
+            &owner,
+            vec![
+                coin(100_000_000_000, "nami"),
+                coin(100_000_000_000, "eth-usdc"),
+            ],
+            Decimal::from_str("100").unwrap(),
+            &[1u64, 2u64, 3u64],
+            Uint128::from(1_000_000_000u128),
+        )
+        .unwrap();
+    test_env
+        .index
+        .sudo_add_allocation(
+            &mut test_env.app,
+            ("nami".to_string(), flipped_swap.address.to_string()),
+        )
+        .unwrap();
+    let status = test_env.index.query_status(&mut test_env.app).unwrap();
+    assert!(
+        status.allocation.iter().any(|(denom, _)| denom == "nami"),
+        "Nami allocation (flipped) not found"
+    );
+
+    // Invalid pair
+    let invalid_swap = nami_rs_testing::mock_fin::MockFin::new_app_layer(
+        &mut test_env.app,
+        "invalid-denom",
+        "wrong-denom",
+    );
+    invalid_swap
+        .populate_orderbook(
+            &mut test_env.app,
+            &owner,
+            vec![
+                coin(100_000_000_000, "wrong-denom"),
+                coin(100_000_000_000, "invalid-denom"),
+            ],
+            Decimal::from_str("100").unwrap(),
+            &[1u64, 2u64, 3u64],
+            Uint128::from(1_000_000_000u128),
+        )
+        .unwrap();
+    let res = test_env
+        .index
+        .sudo_add_allocation(
+            &mut test_env.app,
+            (
+                "invalid-denom".to_string(),
+                invalid_swap.address.to_string(),
+            ),
+        )
+        .unwrap_err();
+    assert_eq!(res.root_cause().to_string(), "Invalid denom pair");
+}

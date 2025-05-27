@@ -1,5 +1,5 @@
 use cosmwasm_std::{
-    coins, ensure_eq, to_json_binary, CosmosMsg, Order, QuerierWrapper, StdResult, Storage, WasmMsg,
+    coins, ensure, to_json_binary, CosmosMsg, Order, QuerierWrapper, StdResult, Storage, WasmMsg,
 };
 use cw_storage_plus::Map;
 use nami_rs::index_entry_adapter::SwapEntry;
@@ -22,18 +22,21 @@ impl<'a> Status<'a> {
         &self,
         storage: &mut dyn Storage,
         querier: &QuerierWrapper,
-        key: &'a str,
+        denom: &'a str,
         value: String,
         quote_denom: String,
     ) -> Result<(), ContractError> {
         let config: fin::ConfigResponse =
             querier.query_wasm_smart(&value, &fin::QueryMsg::Config {})?;
-        ensure_eq!(
-            config.denoms.quote(),
-            quote_denom,
-            ContractError::InvalidQuoteDenom
+        let (quote, base) = (config.denoms.quote(), config.denoms.base());
+        ensure!(
+            // either (quote_denom, denom) == (quote, base)
+            (quote == quote_denom && base == denom)
+                // or flipped: (quote_denom, denom) == (base, quote)
+                || (base == quote_denom && quote == denom),
+            ContractError::InvalidDenomPair {}
         );
-        self.swap_contracts.save(storage, key, &value)?;
+        self.swap_contracts.save(storage, denom, &value)?;
         Ok(())
     }
 

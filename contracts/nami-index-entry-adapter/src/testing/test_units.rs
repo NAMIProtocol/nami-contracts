@@ -2,6 +2,7 @@ use std::str::FromStr;
 
 use crate::testing::env;
 use cosmwasm_std::{coin, coins, Decimal, Uint128};
+use cw_multi_test::Executor;
 use nami_rs::index_entry_adapter::SwapEntry;
 
 #[test]
@@ -334,4 +335,116 @@ fn test_swap_with_extra_tokens() {
         lqdy_balance,
         Uint128::from(10_000_000_000u128 - 154000u128 + 990u128)
     );
+}
+
+#[test]
+fn test_add_contract_denom_validation() {
+    // Initialize user balances
+    let balances = vec![(
+        "owner",
+        vec![
+            coin(200_000_000_000, "nami"),
+            coin(100_000_000_000, "auto"),
+            coin(200_000_000_000, "eth-usdc"),
+        ],
+    )];
+    let mut test_env = env::setup(
+        balances,
+        "eth-usdc".to_string(),
+        vec![
+            ("nami".to_string(), Uint128::from(50u128)),
+            ("auto".to_string(), Uint128::from(100u128)),
+        ],
+        None,
+        None,
+    );
+    let owner = test_env.app.api().addr_make("owner");
+
+    // Populate swap mocks
+    test_env.swaps.iter().for_each(|(denom, swap_mock)| {
+        let quote_denom = "eth-usdc".to_string();
+        let base_denom = denom.clone();
+        swap_mock
+            .populate_orderbook(
+                &mut test_env.app,
+                &owner,
+                vec![
+                    coin(100_000_000_000, quote_denom.clone()),
+                    coin(100_000_000_000, base_denom.clone()),
+                ],
+                Decimal::from_str("100").unwrap(),
+                &[1u64, 2u64, 3u64],
+                Uint128::from(1_000_000_000u128),
+            )
+            .unwrap();
+    });
+
+    // Valid pair (quote_denom = eth-usdc, denom = nami)
+    let nami_swap = test_env
+        .swaps
+        .iter()
+        .find(|(denom, _)| denom == "nami")
+        .unwrap();
+    test_env
+        .entry_adapter
+        .sudo_add_swap_contract(
+            &mut test_env.app,
+            "nami".to_string(),
+            nami_swap.1.address.to_string(),
+        )
+        .unwrap();
+    assert_eq!(
+        test_env
+            .entry_adapter
+            .query_swap_contract(&mut test_env.app, "nami".to_string())
+            .unwrap()
+            .contract,
+        nami_swap.1.address.to_string()
+    );
+
+    // Valid pair with flipped configuration (quote_denom = eth-usdc, denom = nami)
+    // New swap mock with flipped pair (nami as quote, eth-usdc as base)
+    let flipped_swap =
+        nami_rs_testing::mock_fin::MockFin::new_app_layer(&mut test_env.app, "eth-usdc", "nami");
+    flipped_swap
+        .populate_orderbook(
+            &mut test_env.app,
+            &owner,
+            vec![
+                coin(100_000_000_000, "nami"),
+                coin(100_000_000_000, "eth-usdc"),
+            ],
+            Decimal::from_str("100").unwrap(),
+            &[1u64, 2u64, 3u64],
+            Uint128::from(1_000_000_000u128),
+        )
+        .unwrap();
+    test_env
+        .entry_adapter
+        .sudo_add_swap_contract(
+            &mut test_env.app,
+            "nami".to_string(),
+            flipped_swap.address.to_string(),
+        )
+        .unwrap();
+    assert_eq!(
+        test_env
+            .entry_adapter
+            .query_swap_contract(&mut test_env.app, "nami".to_string())
+            .unwrap()
+            .contract,
+        flipped_swap.address.to_string()
+    );
+
+    // Invalid pair (denom does not match base or quote)
+    let res = test_env
+        .entry_adapter
+        .sudo_add_swap_contract(
+            &mut test_env.app,
+            "invalid-denom".to_string(),
+            nami_swap.1.address.to_string(),
+        )
+        .unwrap_err();
+
+    assert_eq!(res.root_cause().to_string(), "Invalid denom pair");
 }

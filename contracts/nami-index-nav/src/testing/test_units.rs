@@ -1146,3 +1146,171 @@ fn test_slippage_scenarios() {
         "Rebalance should swap to BTC with high slippage"
     );
 }
+
+#[test]
+fn test_add_allocation_denom_validation() {
+    // Initialize user balances
+    let balances = vec![
+        (
+            "owner",
+            vec![
+                coin(300_000_000_000, "eth-usdc"),
+                coin(200_000_000_000, "btc-btc"),
+                coin(100_000_000_000, "wrong-denom"),
+                coin(100_000_000_000, "invalid-denom"),
+            ],
+        ),
+        (
+            "user",
+            vec![
+                coin(10_000_000_000, "eth-usdc"),
+                coin(10_000_000_000, "btc-btc"),
+            ],
+        ),
+    ];
+    let mut test_env = index::setup(
+        balances,
+        "eth-usdc".to_string(),
+        vec![
+            (
+                "btc-btc".to_string(),
+                Decimal::percent(50),
+                Decimal::percent(0),
+                Decimal::percent(1),
+            ),
+            (
+                "eth-usdc".to_string(),
+                Decimal::percent(50),
+                Decimal::percent(0),
+                Decimal::percent(1),
+            ),
+        ],
+        None,
+        None,
+        "quote",
+    )
+    .unwrap();
+    let owner = test_env.app.api().addr_make("owner");
+
+    // Populate existing swap mocks
+    test_env.swaps.iter().for_each(|(denom, swap_mock)| {
+        let quote_denom = "eth-usdc".to_string();
+        let base_denom = denom.clone();
+        swap_mock
+            .populate_orderbook(
+                &mut test_env.app,
+                &owner,
+                vec![
+                    coin(100_000_000_000, quote_denom.clone()),
+                    coin(100_000_000_000, base_denom),
+                ],
+                Decimal::from_str("100").unwrap(),
+                &[1u64, 2u64, 3u64],
+                Uint128::from(1_000_000_000u128),
+            )
+            .unwrap();
+    });
+
+    // Valid pair (quote_denom = eth-usdc, denom = btc-btc)
+    let btc_btc_swap = test_env
+        .swaps
+        .iter()
+        .find(|(denom, _)| denom == "btc-btc")
+        .unwrap();
+    test_env
+        .index
+        .sudo_add_allocation(
+            &mut test_env.app,
+            (
+                "btc-btc".to_string(),
+                Decimal::percent(50),
+                Some(btc_btc_swap.1.address.to_string()),
+                OracleConfig::Layer1(Layer1Asset::new(Chain::Btc, "BTC")),
+                Decimal::percent(0),
+                Decimal::percent(1),
+            ),
+        )
+        .unwrap();
+    let status = test_env.index.query_status(&mut test_env.app).unwrap();
+    assert!(
+        status
+            .allocation
+            .iter()
+            .any(|(denom, _, _, _)| denom == "btc-btc"),
+        "BTC-btc allocation not found"
+    );
+
+    // Valid flipped pair (quote_denom = eth-usdc, denom = btc-btc, swap: quote = btc-btc, base = eth-usdc)
+    let flipped_swap =
+        nami_rs_testing::mock_fin::MockFin::new_app_layer(&mut test_env.app, "eth-usdc", "btc-btc");
+    flipped_swap
+        .populate_orderbook(
+            &mut test_env.app,
+            &owner,
+            vec![
+                coin(100_000_000_000, "btc-btc"),
+                coin(100_000_000_000, "eth-usdc"),
+            ],
+            Decimal::from_str("100").unwrap(),
+            &[1u64, 2u64, 3u64],
+            Uint128::from(1_000_000_000u128),
+        )
+        .unwrap();
+    test_env
+        .index
+        .sudo_add_allocation(
+            &mut test_env.app,
+            (
+                "btc-btc".to_string(),
+                Decimal::percent(50),
+                Some(flipped_swap.address.to_string()),
+                OracleConfig::Layer1(Layer1Asset::new(Chain::Btc, "BTC")),
+                Decimal::percent(0),
+                Decimal::percent(1),
+            ),
+        )
+        .unwrap();
+    let status = test_env.index.query_status(&mut test_env.app).unwrap();
+    assert!(
+        status
+            .allocation
+            .iter()
+            .any(|(denom, _, _, _)| denom == "btc-btc"),
+        "BTC-btc allocation (flipped) not found"
+    );
+
+    // Invalid pair (swap with wrong quote denom)
+    let invalid_swap = nami_rs_testing::mock_fin::MockFin::new_app_layer(
+        &mut test_env.app,
+        "invalid-denom",
+        "wrong-denom",
+    );
+    invalid_swap
+        .populate_orderbook(
+            &mut test_env.app,
+            &owner,
+            vec![
+                coin(100_000_000_000, "wrong-denom"),
+                coin(100_000_000_000, "invalid-denom"),
+            ],
+            Decimal::from_str("100").unwrap(),
+            &[1u64, 2u64, 3u64],
+            Uint128::from(1_000_000_000u128),
+        )
+        .unwrap();
+    let res = test_env
+        .index
+        .sudo_add_allocation(
+            &mut test_env.app,
+            (
+                "invalid-denom".to_string(),
+                Decimal::percent(50),
+                Some(invalid_swap.address.to_string()),
+                OracleConfig::Layer1(Layer1Asset::new(Chain::Btc, "BTC")),
+                Decimal::percent(0),
+                Decimal::percent(1),
+            ),
+        )
+        .unwrap_err();
+    assert_eq!(res.root_cause().to_string(), "Invalid denom pair");
+}

@@ -45,14 +45,14 @@ pub enum ContractError {
     #[error("Weight must sum to 1")]
     WeightOne,
 
-    #[error("Invalid quote denom")]
-    InvalidQuoteDenom,
-
     #[error("Swap Contract needed for non-quote allocation")]
     InvalidSwapContract,
 
     #[error("Slippage must be greater than 0 and less than 1")]
     SlippageOne,
+
+    #[error("Invalid denom pair")]
+    InvalidDenomPair,
 
     #[error("Invalid: {0}")]
     Invalid(String),

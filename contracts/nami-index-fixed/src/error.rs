@@ -41,6 +41,6 @@ pub enum ContractError {
     #[error("Invalid weight must be greater than current weight")]
     InvalidWeight,
 
-    #[error("Invalid quote denom")]
-    InvalidQuoteDenom,
+    #[error("Invalid denom pair")]
+    InvalidDenomPair,
 }
