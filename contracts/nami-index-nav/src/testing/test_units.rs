@@ -314,7 +314,7 @@ fn lifecycle() {
     res.assert_event(&Event::new("wasm-nami-index-nav/withdraw"));
     res.assert_event(&Event::new("burn"));
     res.assert_event(
-        &Event::new("mint").add_attributes(vec![("recipient", fee_collector_addr.as_str())]),
+        &Event::new("transfer").add_attributes(vec![("recipient", fee_collector_addr.as_str())]),
     );
 
     // Verify user usdc balance (adjusted for fees)
@@ -922,14 +922,18 @@ fn test_slippage_scenarios() {
         None,
         "quote",
     )
-        .unwrap();
+    .unwrap();
     let rcpt_denom = format!("x/nami-index-{}-rcpt", test_env.index.address);
 
     // Deposit
     let deposit_amount = Uint128::from(5_000_000u128);
     test_env
         .index
-        .execute_deposit(&mut test_env.app, "user", coins(deposit_amount.u128(), "eth-usdc"))
+        .execute_deposit(
+            &mut test_env.app,
+            "user",
+            coins(deposit_amount.u128(), "eth-usdc"),
+        )
         .unwrap();
 
     // Populate orderbook for rebalancing
@@ -958,14 +962,22 @@ fn test_slippage_scenarios() {
         .unwrap();
 
     // Check contract balances after rebalance
-    let usdc_balance = test_env
-        .app
-        .query_balance(&test_env.index.address.as_str(), "eth-usdc", false);
-    let btc_balance = test_env
-        .app
-        .query_balance(&test_env.index.address.as_str(), "btc-btc", false);
-    assert!(usdc_balance < deposit_amount, "USDC balance should decrease after rebalance");
-    assert!(btc_balance > Uint128::zero(), "BTC balance should increase after rebalance");
+    let usdc_balance =
+        test_env
+            .app
+            .query_balance(&test_env.index.address.as_str(), "eth-usdc", false);
+    let btc_balance =
+        test_env
+            .app
+            .query_balance(&test_env.index.address.as_str(), "btc-btc", false);
+    assert!(
+        usdc_balance < deposit_amount,
+        "USDC balance should decrease after rebalance"
+    );
+    assert!(
+        btc_balance > Uint128::zero(),
+        "BTC balance should increase after rebalance"
+    );
 
     // 1% slippage
     let withdraw_amount = Uint128::from(1_000_000u128);
@@ -1095,10 +1107,14 @@ fn test_slippage_scenarios() {
         None,
         "quote",
     )
-        .unwrap();
+    .unwrap();
     test_env_high_slippage
         .index
-        .execute_deposit(&mut test_env_high_slippage.app, "user", coins(deposit_amount.u128(), "eth-usdc"))
+        .execute_deposit(
+            &mut test_env_high_slippage.app,
+            "user",
+            coins(deposit_amount.u128(), "eth-usdc"),
+        )
         .unwrap();
     for (_denom, mock_fin) in &test_env_high_slippage.swaps {
         mock_fin
@@ -1120,8 +1136,13 @@ fn test_slippage_scenarios() {
         .execute_run(&mut test_env_high_slippage.app, "user")
         .unwrap();
     res.assert_event(&Event::new("wasm-nami-index-nav/run"));
-    let btc_balance = test_env_high_slippage
-        .app
-        .query_balance(&test_env_high_slippage.index.address.as_str(), "btc-btc", false);
-    assert!(btc_balance > Uint128::zero(), "Rebalance should swap to BTC with high slippage");
+    let btc_balance = test_env_high_slippage.app.query_balance(
+        &test_env_high_slippage.index.address.as_str(),
+        "btc-btc",
+        false,
+    );
+    assert!(
+        btc_balance > Uint128::zero(),
+        "Rebalance should swap to BTC with high slippage"
+    );
 }

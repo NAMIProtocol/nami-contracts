@@ -1,7 +1,8 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    to_json_binary, Binary, Decimal, Deps, DepsMut, Env, MessageInfo, Response, StdError, Uint128,
+    coins, to_json_binary, BankMsg, Binary, Decimal, Deps, DepsMut, Env, MessageInfo, Response,
+    StdError, Uint128,
 };
 use cw2::set_contract_version;
 use cw_storage_plus::Item;
@@ -90,9 +91,12 @@ pub fn execute(
             let withdraw_value = Decimal::from_ratio(net, Uint128::one())
                 .checked_mul(nav)?
                 .to_uint_floor();
-            response = response
-                .add_event(event_withdraw(info.sender.clone(), withdraw_value, amount))
-                .add_message(rcpt.burn_msg(amount));
+            response =
+                response.add_event(event_withdraw(info.sender.clone(), withdraw_value, amount));
+
+            if net.gt(&Uint128::zero()) {
+                response = response.add_message(rcpt.burn_msg(net));
+            }
 
             if withdraw_value.gt(&Uint128::zero()) {
                 response = response.add_messages(vault.withdraw(
@@ -104,8 +108,10 @@ pub fn execute(
             }
 
             if burn_fee.gt(&Uint128::zero()) {
-                response =
-                    response.add_message(rcpt.mint_msg(burn_fee, config.fee_collector.clone()));
+                response = response.add_message(BankMsg::Send {
+                    to_address: config.fee_collector.to_string(),
+                    amount: coins(burn_fee.into(), rcpt.denom()),
+                });
             }
         }
         ExecuteMsg::Run {} => {

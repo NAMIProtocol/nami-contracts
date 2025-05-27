@@ -1,7 +1,8 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    to_json_binary, BankMsg, Binary, Deps, DepsMut, Env, MessageInfo, Response, Uint128, WasmMsg,
+    coins, to_json_binary, BankMsg, Binary, Deps, DepsMut, Env, MessageInfo, Response, Uint128,
+    WasmMsg,
 };
 use cw2::set_contract_version;
 use cw_storage_plus::Item;
@@ -81,13 +82,16 @@ pub fn execute(
             let (net, burn_fee) = fee_manager.tx_fee(amount)?;
             vault.rebalance(deps.storage, rcpt.supply(deps.querier)? + aum_fee)?;
             let withdraw_funds = Vault::withdraw(deps.storage, net)?;
-            response = response
-                .add_event(event_withdraw(
-                    info.sender.clone(),
-                    withdraw_funds.clone(),
-                    amount,
-                ))
-                .add_message(rcpt.burn_msg(amount));
+            response = response.add_event(event_withdraw(
+                info.sender.clone(),
+                withdraw_funds.clone(),
+                amount,
+            ));
+
+            if net.gt(&Uint128::zero()) {
+                response = response.add_message(rcpt.burn_msg(net));
+            }
+
             if !withdraw_funds.is_empty() {
                 let send_msg = BankMsg::Send {
                     to_address: info.sender.to_string(),
@@ -95,9 +99,12 @@ pub fn execute(
                 };
                 response = response.add_message(send_msg);
             }
+
             if burn_fee.gt(&Uint128::zero()) {
-                response =
-                    response.add_message(rcpt.mint_msg(burn_fee, config.fee_collector.clone()));
+                response = response.add_message(BankMsg::Send {
+                    to_address: config.fee_collector.to_string(),
+                    amount: coins(burn_fee.into(), rcpt.denom()),
+                });
             }
         }
         ExecuteMsg::Callback(cb) => {

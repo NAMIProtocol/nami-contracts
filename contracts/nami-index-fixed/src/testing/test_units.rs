@@ -861,10 +861,9 @@ pub fn test_add_contract_wrong_denom() {
         .unwrap_err();
 }
 
-
 #[test]
 fn minimal_withdraw_user_incur_loss_of_funds() {
-    // in this test we demonstrate that using to_unit_ceil 
+    // in this test we demonstrate that using to_unit_ceil
     // can cause loss of funds when withdrawing from the index
     // when the amount is minimal 1u128
 
@@ -896,7 +895,7 @@ fn minimal_withdraw_user_incur_loss_of_funds() {
             ("lqdy".to_string(), Uint128::from(20u128)),
         ],
         None,
-        Some(Decimal::percent(2))
+        Some(Decimal::percent(2)),
     );
     let rcpt_denom = format!("x/nami-index-{}-rcpt", test_env.index.address);
 
@@ -926,5 +925,153 @@ fn minimal_withdraw_user_incur_loss_of_funds() {
         )
         .unwrap();
     res.assert_event(&Event::new("wasm-nami-index-fixed/withdraw"));
-    res.assert_event(&Event::new("burn").add_attributes(vec![("amount", "1".to_string())]));
+
+    // In the HAL-13 commit, this assertion is commented because we only
+    // send a burn event when `net > 0`.
+    //
+    // res.assert_event(&Event::new("burn").add_attributes(vec![("amount", "1".to_string())]));
+}
+
+#[test]
+fn test_withdraw_fee_transfer() {
+    // Initialize user balances
+    let balances = vec![
+        (
+            "user",
+            vec![
+                coin(10_000_000_000, "nami"),
+                coin(10_000_000_000, "auto"),
+                coin(10_000_000_000, "lqdy"),
+            ],
+        ),
+        (
+            "owner",
+            vec![
+                coin(100_000_000_000, "nami"),
+                coin(100_000_000_000, "auto"),
+                coin(100_000_000_000, "lqdy"),
+            ],
+        ),
+    ];
+
+    let mut test_env = index::setup(
+        balances,
+        "eth-usdc".to_string(),
+        vec![
+            ("nami".to_string(), Uint128::from(50u128)),
+            ("auto".to_string(), Uint128::from(100u128)),
+            ("lqdy".to_string(), Uint128::from(20u128)),
+        ],
+        None,
+        Some(Decimal::percent(2)),
+    );
+    let rcpt_denom = format!("x/nami-index-{}-rcpt", test_env.index.address);
+    let user_addr = test_env.app.api().addr_make("user");
+    let fee_collector_addr = test_env.app.api().addr_make("fee_collector");
+
+    // Deposit to mint 100 receipt tokens
+    let res = test_env
+        .index
+        .execute_deposit(
+            &mut test_env.app,
+            "user",
+            vec![
+                coin(5000u128, "nami"),
+                coin(10000u128, "auto"),
+                coin(2000u128, "lqdy"),
+            ],
+        )
+        .unwrap();
+    res.assert_event(&Event::new("wasm-nami-index-fixed/deposit"));
+    res.assert_event(&Event::new("mint").add_attributes(vec![("amount", "100".to_string())]));
+
+    // Verify user has 100 receipt tokens
+    let user_balance = test_env
+        .app
+        .query_balance(user_addr.as_str(), &rcpt_denom, false);
+    assert_eq!(
+        user_balance,
+        Uint128::from(100u128),
+        "User should have 100 receipt tokens"
+    );
+
+    // Withdraw 100 shares with 2% fee (expect 98 net, 2 fee)
+    let withdraw_amount = coin(100u128, rcpt_denom.clone());
+    let res = test_env
+        .index
+        .execute_withdraw(&mut test_env.app, "user", vec![withdraw_amount])
+        .unwrap();
+
+    // Verify withdraw event
+    res.assert_event(
+        &Event::new("wasm-nami-index-fixed/withdraw")
+            .add_attributes(vec![("owner", user_addr.as_str()), ("shares", "100")]),
+    );
+
+    // Verify burn event for net shares (100 - 2% = 98)
+    res.assert_event(&Event::new("burn").add_attributes(vec![("amount", "98".to_string())]));
+
+    // Verify fee collector received 2 shares
+    let fee_collector_balance =
+        test_env
+            .app
+            .query_balance(fee_collector_addr.as_str(), &rcpt_denom, false);
+    assert_eq!(
+        fee_collector_balance,
+        Uint128::from(2u128),
+        "Fee collector should receive 2 shares"
+    );
+
+    // Verify user has no receipt tokens now
+    let user_balance = test_env
+        .app
+        .query_balance(user_addr.as_str(), &rcpt_denom, false);
+    assert_eq!(
+        user_balance,
+        Uint128::zero(),
+        "User should not have any receipt tokens after withdrawal"
+    );
+
+    // Minimal withdrawal test (1 share)
+    // Re-deposit to mint 1 receipt token
+    let res = test_env
+        .index
+        .execute_deposit(
+            &mut test_env.app,
+            "user",
+            vec![
+                coin(50u128, "nami"),
+                coin(100u128, "auto"),
+                coin(20u128, "lqdy"),
+            ],
+        )
+        .unwrap();
+    res.assert_event(&Event::new("mint").add_attributes(vec![("amount", "1".to_string())]));
+
+    // Withdraw 1 share (expected net = 0, fee = 1 due to rounding)
+    let res = test_env
+        .index
+        .execute_withdraw(
+            &mut test_env.app,
+            "user",
+            vec![coin(1u128, rcpt_denom.clone())],
+        )
+        .unwrap();
+
+    // No burn event expected since net is 0
+    assert!(
+        !res.has_event(&Event::new("burn")),
+        "No burn event should be emitted when net is zero"
+    );
+
+    // Verify fee collector received 1 share
+    let fee_collector_balance =
+        test_env
+            .app
+            .query_balance(fee_collector_addr.as_str(), &rcpt_denom, false);
+    assert_eq!(
+        fee_collector_balance,
+        Uint128::from(3u128), // 2 from previous + 1 from this withdrawal
+        "Fee collector should receive 1 additional share for minimal withdrawal"
+    );
 }
