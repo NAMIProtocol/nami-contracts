@@ -93,7 +93,7 @@ impl FeeManager {
 
         let fee_amount = Decimal::from_ratio(total_supply, Uint128::one())
             .checked_mul(effective)?
-            .to_uint_floor();
+            .to_uint_ceil();
 
         self.last_accrual_time = now;
         Ok(fee_amount)
@@ -110,7 +110,7 @@ impl FeeManager {
 
         let fee = Decimal::from_ratio(amount, Uint128::one())
             .checked_mul(rate)?
-            .to_uint_floor();
+            .to_uint_ceil();
         let net = amount.checked_sub(fee)?;
         Ok((net, fee))
     }
@@ -128,7 +128,7 @@ impl FeeManager {
             let gain = current_value.checked_sub(self.high_water_mark)?;
             let fee = Decimal::from_ratio(gain, Uint128::one())
                 .checked_mul(rate)?
-                .to_uint_floor();
+                .to_uint_ceil();
             self.high_water_mark = current_value;
             Ok(fee)
         } else {
@@ -191,7 +191,7 @@ mod tests {
         let expected = Decimal::from_ratio(total, Uint128::one())
             .checked_mul(Decimal::percent(10))
             .unwrap()
-            .to_uint_floor();
+            .to_uint_ceil();
         assert_eq!(fee, expected);
         assert_eq!(mgr.last_accrual_time, later);
     }
@@ -212,7 +212,7 @@ mod tests {
         let expected = Decimal::from_ratio(total, Uint128::one())
             .checked_mul(half_rate)
             .unwrap()
-            .to_uint_floor();
+            .to_uint_ceil();
         assert_eq!(fee, expected);
     }
 
@@ -226,7 +226,7 @@ mod tests {
         let expected_fee = Decimal::from_ratio(amount, Uint128::one())
             .checked_mul(Decimal::percent(5))
             .unwrap()
-            .to_uint_floor();
+            .to_uint_ceil();
         assert_eq!(fee, expected_fee);
         assert_eq!(net, amount.checked_sub(expected_fee).unwrap());
 
@@ -246,7 +246,7 @@ mod tests {
         let expected = Decimal::from_ratio(gain_value, Uint128::one())
             .checked_mul(Decimal::percent(20))
             .unwrap()
-            .to_uint_floor();
+            .to_uint_ceil();
         assert_eq!(fee, expected);
         // high_water_mark updated
         assert_eq!(mgr.high_water_mark, gain_value);
@@ -254,5 +254,37 @@ mod tests {
         // no further gain
         let fee2 = mgr.perf_fee(gain_value).unwrap();
         assert_eq!(fee2, Uint128::zero());
+    }
+
+    #[test]
+    fn minimal_fee() {
+        let mut mgr = FeeManager::new(make_rates(1, 1, 1), Timestamp::from_seconds(0)).unwrap();
+
+        // performance fee
+        let gain_value = Uint128::from(1u128);
+        let fee = mgr.perf_fee(gain_value).unwrap();
+        let expected = Decimal::from_ratio(gain_value, Uint128::one())
+            .checked_mul(Decimal::percent(1))
+            .unwrap()
+            .to_uint_ceil();
+        assert_eq!(fee, expected);
+        assert_eq!(mgr.high_water_mark, gain_value);
+
+        // management fee
+        let elapsed = 31_557_600u64;
+        let later = Timestamp::from_seconds(elapsed);
+        let total = Uint128::from(1u128);
+        let fee = mgr.aum_fee(later, total).unwrap();
+        let expected = Decimal::from_ratio(total, Uint128::one())
+            .checked_mul(Decimal::percent(1))
+            .unwrap()
+            .to_uint_ceil();
+        assert_eq!(fee, expected);
+
+        // transaction fee
+        let amount = Uint128::from(1u128);
+        let (net, fee) = mgr.tx_fee(amount).unwrap();
+        assert_eq!(fee, Uint128::one());
+        assert_eq!(net, Uint128::zero());
     }
 }

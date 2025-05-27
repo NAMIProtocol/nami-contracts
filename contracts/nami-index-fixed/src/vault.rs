@@ -84,6 +84,9 @@ impl<'a> Vault<'a> {
         storage: &mut dyn Storage,
         shares: Uint128,
     ) -> Result<Vec<Coin>, ContractError> {
+        if shares.is_zero() {
+            return Ok(vec![]);
+        }
         ALLOCATIONS
             .range(storage, None, None, Order::Ascending)
             .map(|item| {

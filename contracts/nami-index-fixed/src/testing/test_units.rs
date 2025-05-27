@@ -860,3 +860,71 @@ pub fn test_add_contract_wrong_denom() {
         )
         .unwrap_err();
 }
+
+
+#[test]
+fn minimal_withdraw_user_incur_loss_of_funds() {
+    // in this test we demonstrate that using to_unit_ceil 
+    // can cause loss of funds when withdrawing from the index
+    // when the amount is minimal 1u128
+
+    // Initialize user balances
+    let balances = vec![
+        (
+            "user",
+            vec![
+                coin(10_000_000_000, "nami"),
+                coin(10_000_000_000, "auto"),
+                coin(10_000_000_000, "lqdy"),
+            ],
+        ),
+        (
+            "owner",
+            vec![
+                coin(100_000_000_000, "nami"),
+                coin(100_000_000_000, "auto"),
+                coin(100_000_000_000, "lqdy"),
+            ],
+        ),
+    ];
+    let mut test_env = index::setup(
+        balances,
+        "eth-usdc".to_string(),
+        vec![
+            ("nami".to_string(), Uint128::from(50u128)),
+            ("auto".to_string(), Uint128::from(100u128)),
+            ("lqdy".to_string(), Uint128::from(20u128)),
+        ],
+        None,
+        Some(Decimal::percent(2))
+    );
+    let rcpt_denom = format!("x/nami-index-{}-rcpt", test_env.index.address);
+
+    // Successful deposit correct proportion
+    let res = test_env
+        .index
+        .execute_deposit(
+            &mut test_env.app,
+            "user",
+            vec![
+                coin(50u128, "nami"),
+                coin(100u128, "auto"),
+                coin(20u128, "lqdy"),
+            ],
+        )
+        .unwrap();
+    res.assert_event(&Event::new("wasm-nami-index-fixed/deposit"));
+    res.assert_event(&Event::new("mint").add_attributes(vec![("amount", "1".to_string())]));
+
+    // Successful withdraw correct proportion
+    let res = test_env
+        .index
+        .execute_withdraw(
+            &mut test_env.app,
+            "user",
+            vec![coin(1u128, rcpt_denom.clone())],
+        )
+        .unwrap();
+    res.assert_event(&Event::new("wasm-nami-index-fixed/withdraw"));
+    res.assert_event(&Event::new("burn").add_attributes(vec![("amount", "1".to_string())]));
+}

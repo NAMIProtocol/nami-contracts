@@ -92,13 +92,16 @@ pub fn execute(
                 .to_uint_floor();
             response = response
                 .add_event(event_withdraw(info.sender.clone(), withdraw_value, amount))
-                .add_message(rcpt.burn_msg(amount))
-                .add_messages(vault.withdraw(
+                .add_message(rcpt.burn_msg(amount));
+
+            if withdraw_value.gt(&Uint128::zero()) {
+                response = response.add_messages(vault.withdraw(
                     deps.storage,
                     withdraw_value,
                     info.sender.clone(),
                     slippage,
                 )?);
+            }
 
             if burn_fee.gt(&Uint128::zero()) {
                 response =

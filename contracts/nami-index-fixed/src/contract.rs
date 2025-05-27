@@ -81,21 +81,24 @@ pub fn execute(
             let (net, burn_fee) = fee_manager.tx_fee(amount)?;
             vault.rebalance(deps.storage, rcpt.supply(deps.querier)? + aum_fee)?;
             let withdraw_funds = Vault::withdraw(deps.storage, net)?;
-            response = response.add_event(event_withdraw(
-                info.sender.clone(),
-                withdraw_funds.clone(),
-                amount,
-            ));
-            let send_msg = BankMsg::Send {
-                to_address: info.sender.to_string(),
-                amount: withdraw_funds,
-            };
-            response = response.add_message(rcpt.burn_msg(amount));
+            response = response
+                .add_event(event_withdraw(
+                    info.sender.clone(),
+                    withdraw_funds.clone(),
+                    amount,
+                ))
+                .add_message(rcpt.burn_msg(amount));
+            if !withdraw_funds.is_empty() {
+                let send_msg = BankMsg::Send {
+                    to_address: info.sender.to_string(),
+                    amount: withdraw_funds,
+                };
+                response = response.add_message(send_msg);
+            }
             if burn_fee.gt(&Uint128::zero()) {
                 response =
                     response.add_message(rcpt.mint_msg(burn_fee, config.fee_collector.clone()));
             }
-            response = response.add_message(send_msg);
         }
         ExecuteMsg::Callback(cb) => {
             let callback_type: CallbackType = cb.deserialize_callback()?;
@@ -129,9 +132,11 @@ pub fn execute(
             vault.rebalance(deps.storage, rcpt.supply(deps.querier)? + aum_fee)?;
         }
     }
+
     if aum_fee.gt(&Uint128::zero()) {
         response = response.add_message(rcpt.mint_msg(aum_fee, config.fee_collector));
     }
+
     FEE_MANAGER.save(deps.storage, &fee_manager)?;
     Ok(response)
 }

@@ -889,42 +889,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "nami-asset-controller"
-version = "0.0.0"
-dependencies = [
- "cosmwasm-schema",
- "cosmwasm-std",
- "cw-multi-test",
- "cw-storage-plus",
- "cw-utils",
- "cw2",
- "nami-rs",
- "rujira-rs",
- "schemars",
- "serde",
- "thiserror 1.0.69",
-]
-
-[[package]]
-name = "nami-ghost-adapter"
-version = "0.0.0"
-dependencies = [
- "cosmwasm-schema",
- "cosmwasm-std",
- "cw-multi-test",
- "cw-storage-plus",
- "cw-utils",
- "cw2",
- "nami-rs",
- "rujira-ghost-vault",
- "rujira-rs",
- "rujira-rs-testing",
- "schemars",
- "serde",
- "thiserror 1.0.69",
-]
-
-[[package]]
 name = "nami-index-entry-adapter"
 version = "0.0.0"
 dependencies = [
@@ -1020,58 +984,6 @@ dependencies = [
  "rujira-rs-testing",
  "schemars",
  "serde",
-]
-
-[[package]]
-name = "nami-stable-swap"
-version = "0.0.0"
-dependencies = [
- "cosmwasm-schema",
- "cosmwasm-std",
- "cw-multi-test",
- "cw-storage-plus",
- "cw-utils",
- "cw2",
- "nami-rs",
- "schemars",
- "serde",
- "thiserror 1.0.69",
-]
-
-[[package]]
-name = "nami-template"
-version = "0.0.0"
-dependencies = [
- "cosmwasm-schema",
- "cosmwasm-std",
- "cw-multi-test",
- "cw-storage-plus",
- "cw-utils",
- "cw2",
- "nami-rs",
- "schemars",
- "serde",
- "thiserror 1.0.69",
-]
-
-[[package]]
-name = "nami-variant-vault"
-version = "0.0.0"
-dependencies = [
- "cosmwasm-schema",
- "cosmwasm-std",
- "cw-multi-test",
- "cw-storage-plus",
- "cw-utils",
- "cw2",
- "nami-ghost-adapter",
- "nami-rs",
- "rujira-ghost-vault",
- "rujira-rs",
- "rujira-rs-testing",
- "schemars",
- "serde",
- "thiserror 1.0.69",
 ]
 
 [[package]]
