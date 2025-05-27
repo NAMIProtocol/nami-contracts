@@ -1,8 +1,8 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    coins, to_json_binary, BankMsg, Binary, Deps, DepsMut, Env, MessageInfo, Response, Uint128,
-    WasmMsg,
+    coins, ensure, to_json_binary, BankMsg, Binary, Deps, DepsMut, Env, MessageInfo, Response,
+    Uint128, WasmMsg,
 };
 use cw2::set_contract_version;
 use cw_storage_plus::Item;
@@ -108,6 +108,10 @@ pub fn execute(
             }
         }
         ExecuteMsg::Callback(cb) => {
+            ensure!(
+                Vault::is_auth(deps.storage, &info.sender)?,
+                ContractError::Unauthorized {}
+            );
             let callback_type: CallbackType = cb.deserialize_callback()?;
             match callback_type {
                 CallbackType::AfterReallocate {

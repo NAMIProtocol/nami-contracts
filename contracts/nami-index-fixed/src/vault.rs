@@ -181,4 +181,13 @@ impl<'a> Vault<'a> {
             allocation,
         })
     }
+
+    pub fn is_auth(storage: &dyn Storage, sender: &Addr) -> Result<bool, ContractError> {
+        ALLOCATIONS
+            .range(storage, None, None, Order::Ascending)
+            .try_fold(false, |found, item| {
+                let (_, (_, contract)) = item?;
+                Ok(found || contract == *sender)
+            })
+    }
 }

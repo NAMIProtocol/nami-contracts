@@ -2,9 +2,14 @@ use std::str::FromStr;
 
 use crate::testing::index;
 use cosmwasm_std::{coin, Decimal, Event, Uint128};
+use cosmwasm_std::{to_json_binary, Binary, Empty};
+use cw_multi_test::Executor;
+use nami_rs::index_fixed::{CallbackType, ExecuteMsg};
 use nami_rs::FeeManager;
 use nami_rs::FeeRates;
 use nami_rs_testing::mock_fin::MockFin;
+use rujira_rs::CallbackData;
+use rujira_rs::CallbackMsg;
 
 #[test]
 fn base_test() {
@@ -156,7 +161,7 @@ fn lifecycle() {
         vec![
             ("auto".to_string(), Uint128::from(99009900u128)),
             ("lqdy".to_string(), Uint128::from(99009900u128)),
-            ("nami".to_string(), Uint128::from(99009900u128))
+            ("nami".to_string(), Uint128::from(99009900u128)),
         ]
     );
 
@@ -256,7 +261,7 @@ fn lifecycle_deposit_first() {
         vec![
             ("auto".to_string(), Uint128::from(99502487u128)),
             ("lqdy".to_string(), Uint128::from(99502487u128)),
-            ("nami".to_string(), Uint128::from(99502487u128))
+            ("nami".to_string(), Uint128::from(99502487u128)),
         ]
     );
 
@@ -362,7 +367,7 @@ fn test_reallocate() {
         vec![
             ("auto".to_string(), Uint128::from(50_000u128)),
             ("lqdy".to_string(), Uint128::from(149_500u128)),
-            ("nami".to_string(), Uint128::from(100_000u128))
+            ("nami".to_string(), Uint128::from(100_000u128)),
         ]
     );
 }
@@ -1074,4 +1079,126 @@ fn test_withdraw_fee_transfer() {
         Uint128::from(3u128), // 2 from previous + 1 from this withdrawal
         "Fee collector should receive 1 additional share for minimal withdrawal"
     );
+}
+
+#[test]
+fn test_callback_unauthorized_sender() {
+    // Initialize user balances
+    let balances = vec![
+        (
+            "user",
+            vec![
+                coin(10_000_000_000, "nami"),
+                coin(10_000_000_000, "auto"),
+                coin(10_000_000_000, "lqdy"),
+                coin(10_000_000_000, "eth-usdc"),
+            ],
+        ),
+        (
+            "owner",
+            vec![
+                coin(100_000_000_000, "nami"),
+                coin(100_000_000_000, "auto"),
+                coin(100_000_000_000, "lqdy"),
+                coin(100_000_000_000, "eth-usdc"),
+            ],
+        ),
+    ];
+
+    let mut test_env = index::setup(
+        balances,
+        "eth-usdc".to_string(),
+        vec![
+            ("nami".to_string(), Uint128::from(100_000u128)),
+            ("auto".to_string(), Uint128::from(100_000u128)),
+            ("lqdy".to_string(), Uint128::from(100_000u128)),
+        ],
+        None,
+        None,
+    );
+
+    let unauthorized_contract = test_env.app.api().addr_make("malicious_contract");
+
+    // Get the swap contract address for "auto"
+    let auto_swap = test_env
+        .swaps
+        .iter()
+        .find(|(denom, _)| denom == "auto")
+        .map(|(_, swap)| swap.address.clone())
+        .expect("Auto swap contract not found");
+
+    // Create a callback message
+    let callback_type = CallbackType::AfterReallocate {
+        swap_to: auto_swap.clone(),
+        min_return: Some(Uint128::from(128u128)),
+    };
+    let callback_msg = ExecuteMsg::Callback(CallbackMsg {
+        data: to_json_binary(&callback_type).unwrap(),
+        callback: CallbackData(to_json_binary(&callback_type).unwrap()),
+    });
+
+    // Execute callback with unauthorized sender
+    let res = test_env.app.app.execute_contract(
+        unauthorized_contract,
+        test_env.index.address.clone(),
+        &callback_msg,
+        &[],
+    );
+
+    // Verify the callback fails with Unauthorized error
+    assert!(
+        res.is_err(),
+        "Callback from unauthorized sender should fail"
+    );
+    assert_eq!(res.unwrap_err().root_cause().to_string(), "Unauthorized");
+}
+
+#[test]
+fn test_callback_empty_allocations() {
+    // Initialize user balances
+    let balances = vec![
+        (
+            "user",
+            vec![
+                coin(10_000_000_000, "nami"),
+                coin(10_000_000_000, "auto"),
+                coin(10_000_000_000, "lqdy"),
+                coin(10_000_000_000, "eth-usdc"),
+            ],
+        ),
+        (
+            "owner",
+            vec![
+                coin(100_000_000_000, "nami"),
+                coin(100_000_000_000, "auto"),
+                coin(100_000_000_000, "lqdy"),
+                coin(100_000_000_000, "eth-usdc"),
+            ],
+        ),
+    ];
+
+    let mut test_env = index::setup(balances, "eth-usdc".to_string(), vec![], None, None);
+
+    let mock_contract = test_env.app.api().addr_make("mock_contract");
+
+    let callback_type = CallbackType::AfterReallocate {
+        swap_to: mock_contract.clone(),
+        min_return: Some(Uint128::from(128u128)),
+    };
+    let callback_msg = ExecuteMsg::Callback(CallbackMsg {
+        data: to_json_binary(&callback_type).unwrap(),
+        callback: CallbackData(to_json_binary(&callback_type).unwrap()),
+    });
+
+    // Execute callback with mock sender
+    let res = test_env.app.app.execute_contract(
+        mock_contract,
+        test_env.index.address.clone(),
+        &callback_msg,
+        &[],
+    );
+
+    // Verify the callback fails with Unauthorized error
+    assert!(res.is_err(), "Callback with empty allocations should fail");
+    assert_eq!(res.unwrap_err().root_cause().to_string(), "Unauthorized");
 }
