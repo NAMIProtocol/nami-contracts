@@ -148,7 +148,7 @@ impl<'a> Vault<'a> {
         Ok(WasmMsg::Execute {
             contract_addr: swap_from.to_string(),
             msg: to_json_binary(&fin::ExecuteMsg::Swap(SwapRequest {
-                min_return,
+                min_return: None,
                 to: None,
                 callback: Some(callback.into()),
             }))?,
