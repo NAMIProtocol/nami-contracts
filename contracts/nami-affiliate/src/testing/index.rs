@@ -61,6 +61,7 @@ pub fn setup(balances: Vec<(&str, Vec<Coin>)>) -> TestEnv {
     let affiliate = MockNamiAffiliate::new(
         &mut nami_app,
         InstantiateMsg {
+            max_affiliate_fee_bps: 2000,
             whitelist: Some(vec![target_contract.clone()]),
         },
     );

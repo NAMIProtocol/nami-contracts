@@ -6,6 +6,8 @@ use nami_rs::index_entry_adapter::SwapEntry;
 use nami_rs::{index_entry_adapter, index_nav};
 use std::ops::DerefMut;
 use std::str::FromStr;
+use nami_rs::affiliate::{InstantiateMsg};
+use nami_rs_testing::mock_nami_affiliate::MockNamiAffiliate;
 
 use super::index_fixed;
 
@@ -354,4 +356,74 @@ fn lifecycle_index_fixed() {
     // 10_000_000_000 - 170_000 - 180_000 + 9_000 * 0.99 = 9_999_658_910
     let user_balance = test_env.app.query_balance("user", "eth-usdc", true);
     assert_eq!(user_balance, Uint128::new(9_999_658_910));
+}
+
+#[test]
+fn execute_with_configured_fee_limit() {
+    let mut test_env = index::setup(vec![
+        ("sender", vec![coin(10_000_000, "eth-usdc")]),
+        ("affiliate", vec![coin(0, "eth-usdc")]),
+        ("fee_collector", vec![coin(0, "eth-usdc")]),
+    ]);
+
+    // Set max_affiliate_fee_bps to 2000
+    MockNamiAffiliate::new(
+        &mut test_env.app,
+        InstantiateMsg {
+            max_affiliate_fee_bps: 2000,
+            whitelist: Some(vec![test_env.target_contract.clone()]),
+        },
+    );
+
+    let affiliate_addr = test_env.app.api().addr_make("affiliate").to_string();
+
+    // Execute with valid affiliate fee (20% = 2000 bps)
+    let funds = vec![coin(1000, "eth-usdc")];
+    let msg = ExecuteMsg::Execute {
+        contract_addr: test_env.target_contract.clone(),
+        msg: to_json_binary(&index_nav::ExecuteMsg::Deposit {}).unwrap(),
+        affiliate: Some((affiliate_addr.clone(), 2000)),
+    };
+    let res = test_env
+        .affiliate
+        .execute(&mut test_env.app, "sender", msg, &funds)
+        .unwrap();
+
+    // Verify events
+    res.assert_event(
+        &Event::new("wasm-nami-affiliate-execute").add_attributes(vec![
+            ("contract_addr", test_env.target_contract.as_str()),
+            ("affiliate", affiliate_addr.as_str()),
+            ("bps", "2000"),
+        ]),
+    );
+
+    // Check balances
+    let affiliate_balance = test_env.app.query_balance("affiliate", "eth-usdc", true);
+    assert_eq!(affiliate_balance, Uint128::new(200)); // 20% of 1000
+
+    let target_balance = test_env
+        .app
+        .query_balance(&test_env.target_contract, "eth-usdc", false);
+    assert_eq!(target_balance, Uint128::new(800)); // 80% of 1000
+
+    let sender_balance = test_env.app.query_balance("sender", "eth-usdc", true);
+    assert_eq!(sender_balance, Uint128::new(10_000_000 - 1000));
+
+    // Execute with fee exceeding max_affiliate_fee_bps (2100 bps > 2000 bps)
+    let msg = ExecuteMsg::Execute {
+        contract_addr: test_env.target_contract.clone(),
+        msg: to_json_binary(&index_nav::ExecuteMsg::Deposit {}).unwrap(),
+        affiliate: Some((affiliate_addr.clone(), 2100)),
+    };
+    let res = test_env
+        .affiliate
+        .execute(&mut test_env.app, "sender", msg, &funds);
+
+    assert!(res.is_err());
+    assert!(res
+        .unwrap_err()
+        .root_cause()
+        .to_string()
+        .contains("Invalid affiliate fee > 2000"));
 }

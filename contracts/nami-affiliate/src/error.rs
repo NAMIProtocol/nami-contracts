@@ -28,8 +28,8 @@ pub enum ContractError {
     #[error("Affiliate call not allowed")]
     InvalidAffiliateCall {},
 
-    #[error("Invalid affiliate fee > 100%")]
-    InvalidAffiliateFee {},
+    #[error("Invalid affiliate fee > {max}")]
+    InvalidAffiliateFee { max: u16 },
 
     #[error("Invalid: {0}")]
     Invalid(String),

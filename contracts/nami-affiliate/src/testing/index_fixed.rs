@@ -72,6 +72,7 @@ pub fn setup(
     let affiliate = MockNamiAffiliate::new(
         &mut nami_app,
         affiliate::InstantiateMsg {
+            max_affiliate_fee_bps: 2000,
             whitelist: Some(vec![entry_adapter.address.to_string()]),
         },
     );

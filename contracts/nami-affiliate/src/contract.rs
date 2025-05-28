@@ -7,7 +7,7 @@ use cosmwasm_std::{
 use cw2::set_contract_version;
 use nami_rs::affiliate::{ExecuteMsg, InstantiateMsg, QueryMsg, SudoMsg};
 
-use crate::{error::ContractError, events::execute_event};
+use crate::{config::Config, error::ContractError, events::execute_event};
 use cosmwasm_std::Addr;
 use cw_storage_plus::Map;
 
@@ -24,6 +24,9 @@ pub fn instantiate(
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+    let config = Config::from(msg.clone());
+    config.validate()?;
+    config.save(deps.storage)?;
     if let Some(whitelist) = msg.whitelist {
         for addr in whitelist {
             WHITELIST.save(
@@ -44,6 +47,7 @@ pub fn execute(
     info: MessageInfo,
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
+    let config = Config::load(deps.storage)?;
     match msg {
         ExecuteMsg::Execute {
             contract_addr,
@@ -63,7 +67,12 @@ pub fn execute(
                 Response::new().add_event(execute_event(contract_addr.clone(), affiliate.clone()));
 
             if let Some((addr, bps)) = affiliate {
-                ensure!(bps <= 10_000u16, ContractError::InvalidAffiliateFee {});
+                ensure!(
+                    bps <= config.max_affiliate_fee_bps,
+                    ContractError::InvalidAffiliateFee {
+                        max: config.max_affiliate_fee_bps
+                    }
+                );
                 let pairs: Vec<(Coin, Coin)> = info
                     .funds
                     .iter()
@@ -139,6 +148,12 @@ pub fn sudo(deps: DepsMut, _env: Env, msg: SudoMsg) -> Result<Response, Contract
         }
         SudoMsg::RemoveWhitelisted { addr } => {
             WHITELIST.remove(deps.storage, deps.api.addr_validate(addr.as_str())?);
+            Ok(Response::default())
+        }
+        SudoMsg::UpdateConfig { max_affiliate_fee_bps } => {
+            let mut config = Config::load(deps.storage)?;
+            config.update(max_affiliate_fee_bps)?;
+            config.save(deps.storage)?;
             Ok(Response::default())
         }
     }

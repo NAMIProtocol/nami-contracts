@@ -1,3 +1,4 @@
+pub mod config;
 pub mod contract;
 mod error;
 mod events;

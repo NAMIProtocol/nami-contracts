@@ -3,6 +3,7 @@ use cosmwasm_std::{Addr, Binary};
 
 #[cw_serde]
 pub struct InstantiateMsg {
+    pub max_affiliate_fee_bps: u16,
     pub whitelist: Option<Vec<String>>,
 }
 
@@ -22,6 +23,7 @@ pub enum ExecuteMsg {
 pub enum SudoMsg {
     AddWhitelisted { addr: String },
     RemoveWhitelisted { addr: String },
+    UpdateConfig { max_affiliate_fee_bps: u16 },
 }
 
 #[cw_serde]
