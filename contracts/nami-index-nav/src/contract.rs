@@ -148,22 +148,8 @@ pub fn sudo(deps: DepsMut, env: Env, msg: SudoMsg) -> Result<Response, ContractE
             FEE_MANAGER.save(deps.storage, &FeeManager::new(fees, env.block.time)?)?;
             Ok(Response::default())
         }
-        SudoMsg::AddAllocation {
-            denom,
-            weight,
-            contract,
-            oracle,
-            threshold,
-            slippage,
-        } => {
-            vault.save_allocation(
-                deps.storage,
-                AssetAllocation::new(denom, weight, contract, oracle, threshold, slippage),
-            )?;
-            Ok(Response::default())
-        }
-        SudoMsg::RemoveAllocation { denom } => {
-            vault.remove_allocation(deps.storage, denom)?;
+        SudoMsg::UpdateAllocation { target_allocation } => {
+            vault.update_allocations(deps.storage, target_allocation)?;
             Ok(Response::default())
         }
     }

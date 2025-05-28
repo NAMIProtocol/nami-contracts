@@ -150,7 +150,9 @@ pub fn sudo(deps: DepsMut, _env: Env, msg: SudoMsg) -> Result<Response, Contract
             WHITELIST.remove(deps.storage, deps.api.addr_validate(addr.as_str())?);
             Ok(Response::default())
         }
-        SudoMsg::UpdateConfig { max_affiliate_fee_bps } => {
+        SudoMsg::UpdateConfig {
+            max_affiliate_fee_bps,
+        } => {
             let mut config = Config::load(deps.storage)?;
             config.update(max_affiliate_fee_bps)?;
             config.save(deps.storage)?;

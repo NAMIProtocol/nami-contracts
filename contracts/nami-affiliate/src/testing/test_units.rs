@@ -2,12 +2,12 @@ use crate::testing::index;
 use cosmwasm_std::{coin, coins, to_json_binary, Decimal, Event, Uint128};
 use cw_multi_test::Executor;
 use nami_rs::affiliate::ExecuteMsg;
+use nami_rs::affiliate::InstantiateMsg;
 use nami_rs::index_entry_adapter::SwapEntry;
 use nami_rs::{index_entry_adapter, index_nav};
+use nami_rs_testing::mock_nami_affiliate::MockNamiAffiliate;
 use std::ops::DerefMut;
 use std::str::FromStr;
-use nami_rs::affiliate::{InstantiateMsg};
-use nami_rs_testing::mock_nami_affiliate::MockNamiAffiliate;
 
 use super::index_fixed;
 

@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use crate::ContractError;
 use cosmwasm_std::{
     coins, ensure, Addr, Api, BankMsg, CosmosMsg, Decimal, Order, QuerierWrapper, Storage, Uint128,
@@ -53,6 +55,59 @@ impl<'a> Vault<'a> {
 
         Ok(())
     }
+
+    pub fn update_allocations(
+        &self,
+        storage: &mut dyn Storage,
+        target_allocations: Vec<AssetAllocation<OracleConfig>>,
+    ) -> Result<(), ContractError> {
+        // 1) Validate overall weight == 1 and exactly one quote allocation
+        let total_weight: Decimal = target_allocations.iter().map(|a| a.weight).sum();
+        ensure!(total_weight == Decimal::one(), ContractError::WeightOne);
+
+        // Find the single quote-denom allocation
+        let mut quote_iters = target_allocations
+            .iter()
+            .filter(|a| a.swap_contract.is_none());
+        let quote_alloc = quote_iters
+            .next()
+            .ok_or(ContractError::MissingQuoteAllocation)?;
+        ensure!(
+            quote_iters.next().is_none(),
+            ContractError::MissingQuoteAllocation
+        );
+
+        // 2) Load current allocations from storage
+        let (curr_quote, curr_others) = self.load_allocations(storage)?;
+        // Ensure the quote denom hasn't changed
+        ensure!(
+            curr_quote.denom == quote_alloc.denom,
+            ContractError::MissingQuoteAllocation
+        );
+
+        // 3) Remove any existing allocations NOT in the new set
+        //    Build a set of target denoms for fast lookup
+        let target_denoms: HashSet<&str> = target_allocations
+            .iter()
+            .map(|a| a.denom.as_str())
+            .collect();
+
+        for alloc in curr_others {
+            if !target_denoms.contains(alloc.denom.as_str()) {
+                // Only remove if it's not in the new set and the balance is zero
+                self.remove_allocation(storage, alloc.denom)?;
+            }
+        }
+
+        // 4) Save or overwrite all target allocations (quote + others)
+        //    Overwrite is safe because we've already removed any allocations NOT in the new set
+        for alloc in target_allocations {
+            self.save_allocation(storage, alloc)?;
+        }
+
+        Ok(())
+    }
+
     pub fn save_allocation(
         &self,
         storage: &mut dyn Storage,

@@ -2,7 +2,7 @@ use std::str::FromStr;
 
 use crate::testing::index;
 use cosmwasm_std::{coin, coins, Decimal, Event, Uint128};
-use nami_rs::{FeeManager, FeeRates, OracleConfig};
+use nami_rs::{AssetAllocation, FeeManager, FeeRates, OracleConfig};
 use nami_rs_testing::mock_fin::MockFin;
 use rujira_rs::{
     fin::{Price, Side},
@@ -402,47 +402,37 @@ fn lifecycle() {
 
     test_env
         .index
-        .sudo_add_allocation(
+        .sudo_update_allocation(
             &mut test_env.app,
-            (
-                "btc-btc".to_string(),
-                Decimal::percent(33),
-                Some(test_env.swaps[0].1.address.to_string()),
-                OracleConfig::Layer1(Layer1Asset::new(Chain::Btc, "BTC")),
-                Decimal::percent(0),
-                Decimal::percent(25),
-            ),
-        )
-        .unwrap();
-    test_env
-        .index
-        .sudo_add_allocation(
-            &mut test_env.app,
-            (
-                "eth-usdc".to_string(),
-                Decimal::percent(34),
-                None,
-                OracleConfig::Layer1(Layer1Asset::new(
-                    Chain::Eth,
-                    "USDC-0XA0B86991C6218B36C1D19D4A2E9EB0CE3606EB48",
-                )),
-                Decimal::percent(0),
-                Decimal::percent(25),
-            ),
-        )
-        .unwrap();
-    test_env
-        .index
-        .sudo_add_allocation(
-            &mut test_env.app,
-            (
-                "eth-eth".to_string(),
-                Decimal::percent(33),
-                Some(eth_eth_swap.address.to_string()),
-                OracleConfig::Layer1(Layer1Asset::new(Chain::Eth, "ETH")),
-                Decimal::percent(0),
-                Decimal::percent(25), // set the slippage very high to make sure the swap succeed
-            ),
+            vec![
+                AssetAllocation::new(
+                    "btc-btc".to_string(),
+                    Decimal::percent(33),
+                    Some(test_env.swaps[0].1.address.to_string()),
+                    OracleConfig::Layer1(Layer1Asset::new(Chain::Btc, "BTC")),
+                    Decimal::percent(0),
+                    Decimal::percent(25),
+                ),
+                AssetAllocation::new(
+                    "eth-usdc".to_string(),
+                    Decimal::percent(34),
+                    None,
+                    OracleConfig::Layer1(Layer1Asset::new(
+                        Chain::Eth,
+                        "USDC-0XA0B86991C6218B36C1D19D4A2E9EB0CE3606EB48",
+                    )),
+                    Decimal::percent(0),
+                    Decimal::percent(25),
+                ),
+                AssetAllocation::new(
+                    "eth-eth".to_string(),
+                    Decimal::percent(33),
+                    Some(eth_eth_swap.address.to_string()),
+                    OracleConfig::Layer1(Layer1Asset::new(Chain::Eth, "ETH")),
+                    Decimal::percent(0),
+                    Decimal::percent(25), // set the slippage very high to make sure the swap succeed
+                ),
+            ],
         )
         .unwrap();
 
@@ -636,9 +626,17 @@ fn cannot_remove_allocation_with_non_zero_balance() {
         "Contract should hold btc-btc after rebalance"
     );
 
-    let res = test_env
-        .index
-        .sudo_remove_allocation(&mut test_env.app, "btc-btc".to_string());
+    let res = test_env.index.sudo_update_allocation(
+        &mut test_env.app,
+        vec![AssetAllocation::new(
+            "eth-usdc".to_string(),
+            Decimal::percent(100),
+            None,
+            OracleConfig::Layer1(Layer1Asset::new(Chain::Btc, "BTC")),
+            Decimal::percent(0),
+            Decimal::percent(1),
+        )],
+    );
     assert!(res.is_err());
     assert!(res
         .unwrap_err()
@@ -685,16 +683,29 @@ fn add_contract_wrong_denom() {
 
     test_env
         .index
-        .sudo_add_allocation(
+        .sudo_update_allocation(
             &mut test_env.app,
-            (
-                "btc-btc".to_string(),
-                Decimal::percent(33),
-                Some(wrong_denom_contract.address.to_string()),
-                OracleConfig::Layer1(Layer1Asset::new(Chain::Btc, "BTC")),
-                Decimal::percent(0),
-                Decimal::percent(1),
-            ),
+            vec![
+                AssetAllocation::new(
+                    "btc-btc".to_string(),
+                    Decimal::percent(50),
+                    Some(wrong_denom_contract.address.to_string()),
+                    OracleConfig::Layer1(Layer1Asset::new(Chain::Btc, "BTC")),
+                    Decimal::percent(0),
+                    Decimal::percent(1),
+                ),
+                AssetAllocation::new(
+                    "eth-usdc".to_string(),
+                    Decimal::percent(50),
+                    None,
+                    OracleConfig::Layer1(Layer1Asset::new(
+                        Chain::Eth,
+                        "USDC-0XA0B86991C6218B36C1D19D4A2E9EB0CE3606EB48",
+                    )),
+                    Decimal::percent(0),
+                    Decimal::percent(25),
+                ),
+            ],
         )
         .unwrap_err();
 }
@@ -1219,16 +1230,29 @@ fn test_add_allocation_denom_validation() {
         .unwrap();
     test_env
         .index
-        .sudo_add_allocation(
+        .sudo_update_allocation(
             &mut test_env.app,
-            (
-                "btc-btc".to_string(),
-                Decimal::percent(50),
-                Some(btc_btc_swap.1.address.to_string()),
-                OracleConfig::Layer1(Layer1Asset::new(Chain::Btc, "BTC")),
-                Decimal::percent(0),
-                Decimal::percent(1),
-            ),
+            vec![
+                AssetAllocation::new(
+                    "btc-btc".to_string(),
+                    Decimal::percent(50),
+                    Some(btc_btc_swap.1.address.to_string()),
+                    OracleConfig::Layer1(Layer1Asset::new(Chain::Btc, "BTC")),
+                    Decimal::percent(0),
+                    Decimal::percent(1),
+                ),
+                AssetAllocation::new(
+                    "eth-usdc".to_string(),
+                    Decimal::percent(50),
+                    None,
+                    OracleConfig::Layer1(Layer1Asset::new(
+                        Chain::Eth,
+                        "USDC-0XA0B86991C6218B36C1D19D4A2E9EB0CE3606EB48",
+                    )),
+                    Decimal::percent(0),
+                    Decimal::percent(1),
+                ),
+            ],
         )
         .unwrap();
     let status = test_env.index.query_status(&mut test_env.app).unwrap();
@@ -1258,16 +1282,29 @@ fn test_add_allocation_denom_validation() {
         .unwrap();
     test_env
         .index
-        .sudo_add_allocation(
+        .sudo_update_allocation(
             &mut test_env.app,
-            (
-                "btc-btc".to_string(),
-                Decimal::percent(50),
-                Some(flipped_swap.address.to_string()),
-                OracleConfig::Layer1(Layer1Asset::new(Chain::Btc, "BTC")),
-                Decimal::percent(0),
-                Decimal::percent(1),
-            ),
+            vec![
+                AssetAllocation::new(
+                    "btc-btc".to_string(),
+                    Decimal::percent(50),
+                    Some(flipped_swap.address.to_string()),
+                    OracleConfig::Layer1(Layer1Asset::new(Chain::Btc, "BTC")),
+                    Decimal::percent(0),
+                    Decimal::percent(1),
+                ),
+                AssetAllocation::new(
+                    "eth-usdc".to_string(),
+                    Decimal::percent(50),
+                    None,
+                    OracleConfig::Layer1(Layer1Asset::new(
+                        Chain::Eth,
+                        "USDC-0XA0B86991C6218B36C1D19D4A2E9EB0CE3606EB48",
+                    )),
+                    Decimal::percent(0),
+                    Decimal::percent(1),
+                ),
+            ],
         )
         .unwrap();
     let status = test_env.index.query_status(&mut test_env.app).unwrap();
@@ -1300,17 +1337,271 @@ fn test_add_allocation_denom_validation() {
         .unwrap();
     let res = test_env
         .index
-        .sudo_add_allocation(
+        .sudo_update_allocation(
             &mut test_env.app,
-            (
-                "invalid-denom".to_string(),
-                Decimal::percent(50),
-                Some(invalid_swap.address.to_string()),
-                OracleConfig::Layer1(Layer1Asset::new(Chain::Btc, "BTC")),
-                Decimal::percent(0),
-                Decimal::percent(1),
-            ),
+            vec![
+                AssetAllocation::new(
+                    "invalid-denom".to_string(),
+                    Decimal::percent(50),
+                    Some(invalid_swap.address.to_string()),
+                    OracleConfig::Layer1(Layer1Asset::new(Chain::Btc, "BTC")),
+                    Decimal::percent(0),
+                    Decimal::percent(1),
+                ),
+                AssetAllocation::new(
+                    "eth-usdc".to_string(),
+                    Decimal::percent(50),
+                    None,
+                    OracleConfig::Layer1(Layer1Asset::new(
+                        Chain::Eth,
+                        "USDC-0XA0B86991C6218B36C1D19D4A2E9EB0CE3606EB48",
+                    )),
+                    Decimal::percent(0),
+                    Decimal::percent(1),
+                ),
+            ],
         )
         .unwrap_err();
     assert_eq!(res.root_cause().to_string(), "Invalid denom pair");
+}
+
+
+#[test]
+fn test_update_allocations() {
+    // Initialize user balances
+    let balances = vec![
+        ("user", vec![coin(10_000_000_000, "eth-usdc")]),
+        (
+            "owner",
+            vec![
+                coin(100_000_000_000, "eth-usdc"),
+                coin(100_000_000_000, "btc-btc"),
+                coin(100_000_000_000, "eth-eth"),
+            ],
+        ),
+    ];
+    let mut test_env = index::setup(
+        balances,
+        "eth-usdc".to_string(),
+        vec![
+            (
+                "btc-btc".to_string(),
+                Decimal::percent(50),
+                Decimal::percent(0),
+                Decimal::percent(1),
+            ),
+            (
+                "eth-usdc".to_string(),
+                Decimal::percent(50),
+                Decimal::percent(0),
+                Decimal::percent(1),
+            ),
+        ],
+        None,
+        None,
+        "quote",
+    )
+        .unwrap();
+
+    // Successful allocation update
+    let eth_eth_swap = MockFin::new(&mut test_env.app, "eth-eth", "eth-usdc");
+    let fair_price_eth = Decimal::from_str("2500").unwrap();
+    let owner = test_env.app.api().addr_make("owner");
+    eth_eth_swap
+        .populate_orderbook(
+            &mut test_env.app,
+            &owner,
+            vec![
+                coin(1_000_000_000, "eth-usdc"),
+                coin(1_000_000_000, "eth-eth"),
+            ],
+            fair_price_eth,
+            &[1u64],
+            Uint128::from(1_000_000u128),
+        )
+        .unwrap();
+
+    let new_allocations = vec![
+        AssetAllocation::new(
+            "btc-btc".to_string(),
+            Decimal::percent(30),
+            Some(test_env.swaps[0].1.address.to_string()),
+            OracleConfig::Layer1(Layer1Asset::new(Chain::Btc, "BTC")),
+            Decimal::percent(0),
+            Decimal::percent(1),
+        ),
+        AssetAllocation::new(
+            "eth-usdc".to_string(),
+            Decimal::percent(40),
+            None,
+            OracleConfig::Layer1(Layer1Asset::new(
+                Chain::Eth,
+                "USDC-0XA0B86991C6218B36C1D19D4A2E9EB0CE3606EB48",
+            )),
+            Decimal::percent(0),
+            Decimal::percent(1),
+        ),
+        AssetAllocation::new(
+            "eth-eth".to_string(),
+            Decimal::percent(30),
+            Some(eth_eth_swap.address.to_string()),
+            OracleConfig::Layer1(Layer1Asset::new(Chain::Eth, "ETH")),
+            Decimal::percent(0),
+            Decimal::percent(1),
+        ),
+    ];
+
+    test_env
+        .index
+        .sudo_update_allocation(&mut test_env.app, new_allocations.clone())
+        .unwrap();
+
+    // Verify allocation weights
+    let status = test_env.index.query_status(&mut test_env.app).unwrap();
+    let mut actual_allocations = status.allocation.clone();
+    actual_allocations.sort_by(|a, b| a.0.cmp(&b.0));
+    let mut expected_allocations = vec![
+        (
+            "btc-btc".to_string(),
+            Uint128::zero(), // No deposit yet, balances are zero
+            Decimal::from_str("100100").unwrap(),
+            Decimal::percent(30),
+        ),
+        (
+            "eth-usdc".to_string(),
+            Uint128::zero(),
+            Decimal::from_str("1.001").unwrap(),
+            Decimal::percent(40),
+        ),
+        (
+            "eth-eth".to_string(),
+            Uint128::zero(),
+            Decimal::from_str("2500").unwrap(),
+            Decimal::percent(30),
+        ),
+    ];
+    expected_allocations.sort_by(|a, b| a.0.cmp(&b.0));
+    assert_eq!(
+        actual_allocations, expected_allocations,
+        "Allocations should reflect updated weights"
+    );
+
+    // Failure when weights do not sum to 1.0
+    let invalid_allocations = vec![
+        AssetAllocation::new(
+            "btc-btc".to_string(),
+            Decimal::percent(50),
+            Some(test_env.swaps[0].1.address.to_string()),
+            OracleConfig::Layer1(Layer1Asset::new(Chain::Btc, "BTC")),
+            Decimal::percent(0),
+            Decimal::percent(1),
+        ),
+        AssetAllocation::new(
+            "eth-usdc".to_string(),
+            Decimal::percent(60),
+            None,
+            OracleConfig::Layer1(Layer1Asset::new(
+                Chain::Eth,
+                "USDC-0XA0B86991C6218B36C1D19D4A2E9EB0CE3606EB48",
+            )),
+            Decimal::percent(0),
+            Decimal::percent(1),
+        ),
+    ];
+    let res = test_env
+        .index
+        .sudo_update_allocation(&mut test_env.app, invalid_allocations);
+    assert!(res.is_err());
+    assert!(res
+        .unwrap_err()
+        .to_string()
+        .contains("Weight must sum to 1"));
+
+    // Failure when removing allocation with non-zero balance
+    test_env
+        .index
+        .execute_deposit(&mut test_env.app, "user", coins(5_000_000u128, "eth-usdc"))
+        .unwrap();
+    let fair_price_btc = Decimal::from_str("91219").unwrap();
+    let owner = test_env.app.api().addr_make("owner");
+    for (_denom, mock_fin) in &test_env.swaps {
+        mock_fin
+            .populate_orderbook(
+                &mut test_env.app,
+                &owner,
+                vec![
+                    coin(1_000_000_000, "eth-usdc"),
+                    coin(1_000_000_000, "btc-btc"),
+                ],
+                fair_price_btc,
+                &[1u64],
+                Uint128::from(1_000_000u128),
+            )
+            .unwrap();
+    }
+    test_env
+        .index
+        .execute_run(&mut test_env.app, "user")
+        .unwrap();
+
+    let btc_balance = test_env
+        .app
+        .query_balance(&test_env.index.address.as_str(), "btc-btc", false);
+    assert!(
+        btc_balance > Uint128::zero(),
+        "Contract should hold btc-btc after rebalance"
+    );
+
+    let remove_btc_allocation = vec![
+        AssetAllocation::new(
+            "eth-usdc".to_string(),
+            Decimal::percent(100),
+            None,
+            OracleConfig::Layer1(Layer1Asset::new(
+                Chain::Eth,
+                "USDC-0XA0B86991C6218B36C1D19D4A2E9EB0CE3606EB48",
+            )),
+            Decimal::percent(0),
+            Decimal::percent(1),
+        ),
+    ];
+    let res = test_env
+        .index
+        .sudo_update_allocation(&mut test_env.app, remove_btc_allocation);
+    assert!(res.is_err());
+    assert!(res
+        .unwrap_err()
+        .to_string()
+        .contains("Weight must be zero to remove allocation"));
+
+    // Failure with multiple quote denominations
+    let invalid_quote_allocations = vec![
+        AssetAllocation::new(
+            "btc-btc".to_string(),
+            Decimal::percent(50),
+            None,
+            OracleConfig::Layer1(Layer1Asset::new(Chain::Btc, "BTC")),
+            Decimal::percent(0),
+            Decimal::percent(1),
+        ),
+        AssetAllocation::new(
+            "eth-usdc".to_string(),
+            Decimal::percent(50),
+            None,
+            OracleConfig::Layer1(Layer1Asset::new(
+                Chain::Eth,
+                "USDC-0XA0B86991C6218B36C1D19D4A2E9EB0CE3606EB48",
+            )),
+            Decimal::percent(0),
+            Decimal::percent(1),
+        ),
+    ];
+    let res = test_env
+        .index
+        .sudo_update_allocation(&mut test_env.app, invalid_quote_allocations);
+    assert!(res.is_err());
+    assert!(res
+        .unwrap_err()
+        .to_string()
+        .contains("Missing or duplicate quote allocation"));
 }

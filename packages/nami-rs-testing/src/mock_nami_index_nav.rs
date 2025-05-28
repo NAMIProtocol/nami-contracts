@@ -5,7 +5,7 @@ use nami_rs::{
     index_nav::{
         ConfigResponse, ExecuteMsg, InstantiateMsg, QueryMsg, SudoMsg, VaultStatusResponse,
     },
-    FeeManager, FeeRates, OracleConfig,
+    AssetAllocation, FeeManager, FeeRates, OracleConfig,
 };
 use rujira_rs_testing::RujiraApp;
 
@@ -76,37 +76,17 @@ impl MockNamiIndexNav {
         )
     }
 
-    pub fn sudo_add_allocation(
+    pub fn sudo_update_allocation(
         &self,
         app: &mut RujiraApp,
-        allocation: (
-            String,
-            Decimal,
-            Option<String>,
-            OracleConfig,
-            Decimal,
-            Decimal,
-        ),
+        allocation: Vec<AssetAllocation<OracleConfig>>,
     ) -> anyhow::Result<AppResponse> {
         app.wasm_sudo(
             self.address.clone(),
-            &SudoMsg::AddAllocation {
-                denom: allocation.0,
-                weight: allocation.1,
-                contract: allocation.2,
-                oracle: allocation.3,
-                threshold: allocation.4,
-                slippage: allocation.5,
+            &SudoMsg::UpdateAllocation {
+                target_allocation: allocation,
             },
         )
-    }
-
-    pub fn sudo_remove_allocation(
-        &self,
-        app: &mut RujiraApp,
-        denom: String,
-    ) -> anyhow::Result<AppResponse> {
-        app.wasm_sudo(self.address.clone(), &SudoMsg::RemoveAllocation { denom })
     }
 
     pub fn query_config(&self, app: &mut RujiraApp) -> StdResult<ConfigResponse> {

@@ -26,16 +26,8 @@ pub enum SudoMsg {
         fee_collector: Option<String>,
         fees: FeeRates,
     },
-    AddAllocation {
-        denom: String,
-        weight: Decimal,
-        contract: Option<String>,
-        oracle: OracleConfig,
-        threshold: Decimal,
-        slippage: Decimal,
-    },
-    RemoveAllocation {
-        denom: String,
+    UpdateAllocation {
+        target_allocation: Vec<AssetAllocation<OracleConfig>>,
     },
 }
 
