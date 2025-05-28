@@ -44,6 +44,10 @@ impl<'a> Vault<'a> {
         weight: Uint128,
         contract: &str,
     ) -> Result<(), ContractError> {
+        ensure!(
+            !ALLOCATIONS.has(storage, denom),
+            ContractError::AllocationAlreadyExists {}
+        );
         let contract = self.api.addr_validate(contract)?;
         let config: fin::ConfigResponse = self
             .querier

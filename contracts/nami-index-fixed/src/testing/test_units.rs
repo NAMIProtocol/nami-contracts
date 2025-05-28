@@ -578,27 +578,6 @@ fn test_add_allocation() {
             ("nami".to_string(), Uint128::from(100_000u128)),
         ]
     );
-
-    for swap in test_env.swaps.iter() {
-        test_env
-            .index
-            .sudo_add_allocation(
-                &mut test_env.app,
-                (swap.0.clone(), swap.1.address.to_string()),
-            )
-            .unwrap();
-    }
-
-    // Verify new allocation
-    let status = test_env.index.query_status(&mut test_env.app).unwrap();
-    assert_eq!(
-        status.allocation,
-        vec![
-            ("auto".to_string(), Uint128::from(100_000u128)),
-            ("lqdy".to_string(), Uint128::zero()),
-            ("nami".to_string(), Uint128::from(100_000u128)),
-        ]
-    );
 }
 
 #[test]
@@ -667,29 +646,8 @@ fn test_add_allocation_zero_rcpt() {
             ("auto".to_string(), Uint128::from(100_000u128)),
             ("lqdy".to_string(), Uint128::zero()),
             ("nami".to_string(), Uint128::from(100_000u128)),
-        ]
-    );
-
-    for swap in test_env.swaps.iter() {
-        test_env
-            .index
-            .sudo_add_allocation(
-                &mut test_env.app,
-                (swap.0.clone(), swap.1.address.to_string()),
-            )
-            .unwrap();
-    }
-
-    // Verify new allocation everything is set to zero. Only case possible if rcpt token supply is 0
-    // this can be used as security behaviour as deprecating an old contract
-    let status = test_env.index.query_status(&mut test_env.app).unwrap();
-    assert_eq!(
-        status.allocation,
-        vec![
-            ("auto".to_string(), Uint128::zero()),
-            ("lqdy".to_string(), Uint128::zero()),
-            ("nami".to_string(), Uint128::zero()),
-        ]
+        ],
+        "Expected initial weights for auto and nami, zero for lqdy when receipt token supply is zero"
     );
 }
 
@@ -1347,10 +1305,7 @@ fn test_add_allocation_denom_validation() {
     let mut test_env = index::setup(
         balances,
         "eth-usdc".to_string(),
-        vec![
-            ("nami".to_string(), Uint128::from(50u128)),
-            ("auto".to_string(), Uint128::from(100u128)),
-        ],
+        vec![("nami".to_string(), Uint128::from(50u128))],
         None,
         None,
     );
@@ -1387,22 +1342,21 @@ fn test_add_allocation_denom_validation() {
             &mut test_env.app,
             ("nami".to_string(), nami_swap.1.address.to_string()),
         )
-        .unwrap();
+        .expect_err("Expected error due to duplicate denom");
     let status = test_env.index.query_status(&mut test_env.app).unwrap();
     assert!(
         status.allocation.iter().any(|(denom, _)| denom == "nami"),
-        "Nami allocation not found"
+        "Nami allocation should still exist"
     );
 
-    // Valid flipped pair (quote_denom = eth-usdc, denom = nami, swap: quote = nami, base = eth-usdc)
-    let flipped_swap =
-        nami_rs_testing::mock_fin::MockFin::new_app_layer(&mut test_env.app, "eth-usdc", "nami");
+    // Valid flipped pair (quote_denom = eth-usdc, denom = auto, swap: quote = auto, base = eth-usdc)
+    let flipped_swap = MockFin::new_app_layer(&mut test_env.app, "eth-usdc", "auto");
     flipped_swap
         .populate_orderbook(
             &mut test_env.app,
             &owner,
             vec![
-                coin(100_000_000_000, "nami"),
+                coin(100_000_000_000, "auto"),
                 coin(100_000_000_000, "eth-usdc"),
             ],
             Decimal::from_str("100").unwrap(),
@@ -1414,21 +1368,17 @@ fn test_add_allocation_denom_validation() {
         .index
         .sudo_add_allocation(
             &mut test_env.app,
-            ("nami".to_string(), flipped_swap.address.to_string()),
+            ("auto".to_string(), flipped_swap.address.to_string()),
         )
         .unwrap();
     let status = test_env.index.query_status(&mut test_env.app).unwrap();
     assert!(
-        status.allocation.iter().any(|(denom, _)| denom == "nami"),
-        "Nami allocation (flipped) not found"
+        status.allocation.iter().any(|(denom, _)| denom == "auto"),
+        "Auto allocation (flipped) not found"
     );
 
     // Invalid pair
-    let invalid_swap = nami_rs_testing::mock_fin::MockFin::new_app_layer(
-        &mut test_env.app,
-        "invalid-denom",
-        "wrong-denom",
-    );
+    let invalid_swap = MockFin::new_app_layer(&mut test_env.app, "invalid-denom", "wrong-denom");
     invalid_swap
         .populate_orderbook(
             &mut test_env.app,
@@ -1446,10 +1396,7 @@ fn test_add_allocation_denom_validation() {
         .index
         .sudo_add_allocation(
             &mut test_env.app,
-            (
-                "invalid-denom".to_string(),
-                invalid_swap.address.to_string(),
-            ),
+            ("invalid-denom".to_string(), invalid_swap.address.to_string()),
         )
         .unwrap_err();
     assert_eq!(res.root_cause().to_string(), "Invalid denom pair");
@@ -1682,5 +1629,84 @@ fn test_deposit_does_not_use_stale_amount_per_share() {
     assert!(
         shares_a == shares_b,
         "Expected same share totals with and without Run"
+    );
+}
+
+#[test]
+fn test_add_allocation_duplicate_denom_fails() {
+    // Initialize user balances
+    let balances = vec![
+        (
+            "user",
+            vec![
+                coin(20_000_000_000, "nami"),
+                coin(20_000_000_000, "auto"),
+                coin(20_000_000_000, "eth-usdc"),
+            ],
+        ),
+        (
+            "owner",
+            vec![
+                coin(100_000_000_000, "nami"),
+                coin(100_000_000_000, "auto"),
+                coin(100_000_000_000, "eth-usdc"),
+            ],
+        ),
+    ];
+    let mut test_env = index::setup(
+        balances,
+        "eth-usdc".to_string(),
+        vec![("nami".to_string(), Uint128::from(100_000u128))],
+        Some(Decimal::percent(1)),
+        None,
+    );
+
+    // Verify initial allocation for nami
+    let status = test_env.index.query_status(&mut test_env.app).unwrap();
+    assert_eq!(
+        status.allocation,
+        vec![("nami".to_string(), Uint128::from(100_000u128))],
+        "Initial allocation for nami not set correctly"
+    );
+
+    // Create a new swap contract for nami to use in the duplicate allocation attempt
+    let nami_swap = MockFin::new_app_layer(&mut test_env.app, "nami", "eth-usdc");
+    let owner = test_env.app.api().addr_make("owner");
+    nami_swap
+        .populate_orderbook(
+            &mut test_env.app,
+            &owner,
+            vec![
+                coin(100_000_000_000, "eth-usdc"),
+                coin(100_000_000_000, "nami"),
+            ],
+            Decimal::from_str("1").unwrap(),
+            &[1u64, 2u64, 3u64],
+            Uint128::from(10_000_000_000u128),
+        )
+        .unwrap();
+
+    // Attempt to add allocation for nami again
+    let res = test_env
+        .index
+        .sudo_add_allocation(
+            &mut test_env.app,
+            ("nami".to_string(), nami_swap.address.to_string()),
+        );
+
+    // Verify the operation fails with AllocationAlreadyExists error
+    assert!(res.is_err(), "Adding duplicate allocation should fail");
+    assert_eq!(
+        res.unwrap_err().root_cause().to_string(),
+        "Allocation already exists",
+        "Expected AllocationAlreadyExists error"
+    );
+
+    // Verify allocation remains unchanged
+    let status = test_env.index.query_status(&mut test_env.app).unwrap();
+    assert_eq!(
+        status.allocation,
+        vec![("nami".to_string(), Uint128::from(100_000u128))],
+        "Allocation should not change after failed duplicate attempt"
     );
 }

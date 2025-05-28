@@ -43,4 +43,7 @@ pub enum ContractError {
 
     #[error("Invalid denom pair")]
     InvalidDenomPair,
+
+    #[error("Allocation already exists")]
+    AllocationAlreadyExists,
 }
