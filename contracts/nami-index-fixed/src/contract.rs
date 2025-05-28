@@ -65,6 +65,7 @@ pub fn execute(
     );
     let vault = Vault::new(deps.api, &deps.querier, env.contract.address.clone());
     let aum_fee = fee_manager.aum_fee(env.block.time, rcpt.supply(deps.querier)?)?;
+    let mut run_msg = None;
     let mut response = Response::new();
     match msg {
         ExecuteMsg::Deposit {} => {
@@ -106,6 +107,12 @@ pub fn execute(
                     amount: coins(burn_fee.into(), rcpt.denom()),
                 });
             }
+
+            run_msg = Some(WasmMsg::Execute {
+                contract_addr: env.contract.address.to_string(),
+                msg: to_json_binary(&ExecuteMsg::Run {})?,
+                funds: vec![],
+            });
         }
         ExecuteMsg::Callback(cb) => {
             ensure!(
@@ -128,12 +135,12 @@ pub fn execute(
                         }))?,
                         funds: coins(amount.into(), config.quote_denom),
                     };
-                    let run_msg = WasmMsg::Execute {
+                    run_msg = Some(WasmMsg::Execute {
                         contract_addr: env.contract.address.to_string(),
                         msg: to_json_binary(&ExecuteMsg::Run {})?,
                         funds: vec![],
-                    };
-                    response = response.add_message(msg).add_message(run_msg);
+                    });
+                    response = response.add_message(msg);
                 }
             }
         }
@@ -147,6 +154,11 @@ pub fn execute(
     }
 
     FEE_MANAGER.save(deps.storage, &fee_manager)?;
+
+    if let Some(msg) = run_msg {
+        response = response.add_message(msg);
+    }
+
     Ok(response)
 }
 

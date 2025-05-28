@@ -159,9 +159,9 @@ fn lifecycle() {
     assert_eq!(
         res.allocation,
         vec![
-            ("auto".to_string(), Uint128::from(99009900u128)),
-            ("lqdy".to_string(), Uint128::from(99009900u128)),
-            ("nami".to_string(), Uint128::from(99009900u128)),
+            ("auto".to_string(), Uint128::from(99010000u128)),
+            ("lqdy".to_string(), Uint128::from(99010000u128)),
+            ("nami".to_string(), Uint128::from(99010000u128))
         ]
     );
 
@@ -1453,4 +1453,234 @@ fn test_add_allocation_denom_validation() {
         )
         .unwrap_err();
     assert_eq!(res.root_cause().to_string(), "Invalid denom pair");
+}
+
+#[test]
+fn test_deposit_does_not_use_stale_amount_per_share() {
+    // Initialize user balances
+    let balances = vec![
+        (
+            "user",
+            vec![
+                coin(20_000_000_000, "nami"),
+                coin(20_000_000_000, "auto"),
+                coin(20_000_000_000, "lqdy"),
+            ],
+        ),
+        (
+            "owner",
+            vec![
+                coin(100_000_000_000, "nami"),
+                coin(100_000_000_000, "auto"),
+                coin(100_000_000_000, "lqdy"),
+                coin(100_000_000_000, "eth-usdc"),
+            ],
+        ),
+    ];
+
+    let allocations = vec![
+        ("nami".to_string(), Uint128::from(1000u128)),
+        ("auto".to_string(), Uint128::from(1000u128)),
+        ("lqdy".to_string(), Uint128::from(1000u128)),
+    ];
+
+    // ---- Scenario A: without forced Run ----
+    let mut test_env_a = index::setup(
+        balances.clone(),
+        "eth-usdc".to_string(),
+        allocations.clone(),
+        Some(Decimal::percent(50)),
+        Some(Decimal::percent(0)),
+    );
+
+    let rcpt_denom_a = format!("x/nami-index-fixed-{}-rcpt", test_env_a.index.address);
+
+    // First deposit
+    test_env_a
+        .index
+        .execute_deposit(
+            &mut test_env_a.app,
+            "user",
+            vec![
+                coin(10_000u128, "nami"),
+                coin(10_000u128, "auto"),
+                coin(10_000u128, "lqdy"),
+            ],
+        )
+        .unwrap();
+
+    // move block 1 year
+    const SECS_PER_YEAR: u64 = 31_557_600; // ≈365.25 days
+    test_env_a.app.update_block(|block| {
+        block.height += 1;
+        block.time = block.time.plus_seconds(SECS_PER_YEAR);
+    });
+
+    let status_a = test_env_a.index.query_status(&mut test_env_a.app).unwrap();
+    let shares_a = status_a.total_shares;
+
+    // Check status before withdraw
+    println!("");
+    println!("----- SCENARIO A -----");
+    println!("");
+    println!("Check Status: first deposit, before withdraw, without manual Run");
+    println!("Total shares: {}", shares_a);
+    println!("Allocations:");
+    for (denom, weight) in status_a.allocation.iter() {
+        println!("- {}: {}", denom, weight);
+    }
+
+    // Withdraw
+    test_env_a
+        .index
+        .execute_withdraw(
+            &mut test_env_a.app,
+            "user",
+            vec![coin(10u128, rcpt_denom_a.clone())],
+        )
+        .unwrap();
+
+    // Check status after withdraw
+    let status_a = test_env_a.index.query_status(&mut test_env_a.app).unwrap();
+    let shares_a = status_a.total_shares;
+    println!("Check Status: first deposit, after withdraw, without manual Run");
+    println!("Total shares: {}", shares_a);
+    println!("Allocations:");
+    for (denom, weight) in status_a.allocation.iter() {
+        println!("- {}: {}", denom, weight);
+    }
+
+    // Second deposit
+    test_env_a
+        .index
+        .execute_deposit(
+            &mut test_env_a.app,
+            "user",
+            vec![
+                coin(1_000_000u128, "nami"),
+                coin(1_000_000u128, "auto"),
+                coin(1_000_000u128, "lqdy"),
+            ],
+        )
+        .unwrap();
+
+    // Check status after second deposit
+    let status_a = test_env_a.index.query_status(&mut test_env_a.app).unwrap();
+    let shares_a = status_a.total_shares;
+    println!("Check Status: second deposit, after withdraw, without manual Run");
+    println!("Total shares: {}", shares_a);
+    println!("Allocations:");
+    for (denom, weight) in status_a.allocation.iter() {
+        println!("- {}: {}", denom, weight);
+    }
+
+    // ---- Scenario B: with forced Run after withdraw ----
+    let mut test_env_b = index::setup(
+        balances,
+        "eth-usdc".to_string(),
+        allocations,
+        Some(Decimal::percent(50)),
+        Some(Decimal::percent(0)),
+    );
+
+    let rcpt_denom_b = format!("x/nami-index-fixed-{}-rcpt", test_env_b.index.address);
+
+    // First deposit
+    test_env_b
+        .index
+        .execute_deposit(
+            &mut test_env_b.app,
+            "user",
+            vec![
+                coin(10_000u128, "nami"),
+                coin(10_000u128, "auto"),
+                coin(10_000u128, "lqdy"),
+            ],
+        )
+        .unwrap();
+
+    // move block 1 year
+    test_env_b.app.update_block(|block| {
+        block.height += 1;
+        block.time = block.time.plus_seconds(SECS_PER_YEAR);
+    });
+
+    // Check status before withdraw
+    let status_b = test_env_b.index.query_status(&mut test_env_b.app).unwrap();
+    let shares_b = status_b.total_shares;
+    println!("");
+    println!("----- SCENARIO B -----");
+    println!("");
+    println!("Check Status: first deposit, before withdraw, before manual Run");
+    println!("Total shares: {}", shares_b);
+    println!("Allocations:");
+    for (denom, weight) in status_b.allocation.iter() {
+        println!("- {}: {}", denom, weight);
+    }
+
+    // Withdraw
+    test_env_b
+        .index
+        .execute_withdraw(
+            &mut test_env_b.app,
+            "user",
+            vec![coin(10u128, rcpt_denom_b.clone())],
+        )
+        .unwrap();
+
+    // Check status after withdraw
+    let status_b = test_env_b.index.query_status(&mut test_env_b.app).unwrap();
+    let shares_b = status_b.total_shares;
+    println!("Check Status: first deposit, after withdraw, BEFORE manual Run");
+    println!("Total shares: {}", shares_b);
+    println!("Allocations:");
+    for (denom, weight) in status_b.allocation.iter() {
+        println!("- {}: {}", denom, weight);
+    }
+
+    // Call Run manually to update internal state before next deposit
+    test_env_b
+        .index
+        .execute_run(&mut test_env_b.app, "user")
+        .unwrap();
+
+    // Check status after Run
+    let status_b = test_env_b.index.query_status(&mut test_env_b.app).unwrap();
+    let shares_b = status_b.total_shares;
+    println!("Check Status: first deposit, after withdraw, AFTER manual Run");
+    println!("Total shares: {}", shares_b);
+    println!("Allocations:");
+    for (denom, weight) in status_b.allocation.iter() {
+        println!("- {}: {}", denom, weight);
+    }
+
+    // Second deposit
+    test_env_b
+        .index
+        .execute_deposit(
+            &mut test_env_b.app,
+            "user",
+            vec![
+                coin(1_000_000u128, "nami"),
+                coin(1_000_000u128, "auto"),
+                coin(1_000_000u128, "lqdy"),
+            ],
+        )
+        .unwrap();
+
+    // Check status after second deposit
+    let status_b = test_env_b.index.query_status(&mut test_env_b.app).unwrap();
+    let shares_b = status_b.total_shares;
+    println!("Check Status: second deposit, after withdraw, after manual Run");
+    println!("Total shares: {}", shares_b);
+    println!("Allocations:");
+    for (denom, weight) in status_b.allocation.iter() {
+        println!("- {}: {}", denom, weight);
+    }
+
+    // Compare results
+    assert!(
+        shares_a == shares_b,
+        "Expected same share totals with and without Run"
+    );
 }

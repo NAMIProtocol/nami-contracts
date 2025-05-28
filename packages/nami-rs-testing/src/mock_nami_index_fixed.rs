@@ -58,6 +58,11 @@ impl MockNamiIndexFixed {
         )
     }
 
+    pub fn execute_run(&self, app: &mut RujiraApp, user: &str) -> anyhow::Result<AppResponse> {
+        let user_addr = app.api().addr_make(user);
+        app.execute_contract(user_addr, self.address.clone(), &ExecuteMsg::Run {}, &[])
+    }
+
     pub fn sudo_reallocate(
         &self,
         app: &mut RujiraApp,
