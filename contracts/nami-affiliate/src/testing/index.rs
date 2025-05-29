@@ -5,7 +5,7 @@ use nami_rs::{AssetAllocation, FeeRates, OracleConfig};
 use nami_rs_testing::mock_nami_affiliate::MockNamiAffiliate;
 use nami_rs_testing::mock_nami_app::NamiApp;
 use nami_rs_testing::mock_nami_index_nav::MockNamiIndexNav;
-use rujira_rs::{Chain, Layer1Asset, TokenMetadata};
+use rujira_rs::{Layer1Asset, TokenMetadata};
 use rujira_rs_testing::mock_rujira_app;
 
 pub struct TestEnv {
@@ -46,7 +46,7 @@ pub fn setup(balances: Vec<(&str, Vec<Coin>)>) -> TestEnv {
                 Decimal::percent(100),
                 None,
                 OracleConfig::Layer1(Layer1Asset::new(
-                    Chain::Eth,
+                    "ETH",
                     "USDC-0XA0B86991C6218B36C1D19D4A2E9EB0CE3606EB48",
                 )),
                 Decimal::zero(),

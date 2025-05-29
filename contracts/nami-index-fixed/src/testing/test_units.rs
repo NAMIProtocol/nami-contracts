@@ -1396,7 +1396,10 @@ fn test_add_allocation_denom_validation() {
         .index
         .sudo_add_allocation(
             &mut test_env.app,
-            ("invalid-denom".to_string(), invalid_swap.address.to_string()),
+            (
+                "invalid-denom".to_string(),
+                invalid_swap.address.to_string(),
+            ),
         )
         .unwrap_err();
     assert_eq!(res.root_cause().to_string(), "Invalid denom pair");
@@ -1687,12 +1690,10 @@ fn test_add_allocation_duplicate_denom_fails() {
         .unwrap();
 
     // Attempt to add allocation for nami again
-    let res = test_env
-        .index
-        .sudo_add_allocation(
-            &mut test_env.app,
-            ("nami".to_string(), nami_swap.address.to_string()),
-        );
+    let res = test_env.index.sudo_add_allocation(
+        &mut test_env.app,
+        ("nami".to_string(), nami_swap.address.to_string()),
+    );
 
     // Verify the operation fails with AllocationAlreadyExists error
     assert!(res.is_err(), "Adding duplicate allocation should fail");

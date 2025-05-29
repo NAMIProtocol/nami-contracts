@@ -2,7 +2,7 @@ use cosmwasm_std::{Addr, Coin, Decimal, Uint128};
 use cw_multi_test::{AppResponse, ContractWrapper, Executor};
 use rujira_rs::{
     fin::{Denoms, ExecuteMsg, InstantiateMsg, Price, Side, Tick},
-    Chain, Layer1Asset,
+    Layer1Asset,
 };
 use rujira_rs_testing::RujiraApp;
 
@@ -19,7 +19,9 @@ impl MockFin {
         let code = Box::new(ContractWrapper::new(execute, instantiate, query).with_sudo(sudo));
         let code_id = app.store_code(code);
         let layer_1_asset = get_layer_1_asset(base_denom);
+        println!("layer_1_asset: {layer_1_asset:?}");
         let layer_1_asset_quote = get_layer_1_asset(quote_denom);
+        println!("layer_1_asset_quote: {layer_1_asset_quote:?}");
         let contract = app
             .instantiate_contract(
                 code_id,
@@ -119,11 +121,11 @@ impl MockFin {
 
 fn get_layer_1_asset(denom: &str) -> Layer1Asset {
     match denom {
-        "btc-btc" => Layer1Asset::new(Chain::Btc, "BTC"),
+        "btc-btc" => Layer1Asset::new("BTC", "BTC"),
         "eth-usdc" => {
             Layer1Asset::try_from("ETH.USDC-0XA0B86991C6218B36C1D19D4A2E9EB0CE3606EB48").unwrap()
         }
-        "eth-eth" => Layer1Asset::new(Chain::Eth, "ETH"),
+        "eth-eth" => Layer1Asset::new("ETH", "ETH"),
         _ => panic!("Invalid denom"),
     }
 }

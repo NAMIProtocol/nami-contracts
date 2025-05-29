@@ -6,7 +6,7 @@ use nami_rs::{AssetAllocation, FeeManager, FeeRates, OracleConfig};
 use nami_rs_testing::mock_fin::MockFin;
 use rujira_rs::{
     fin::{Price, Side},
-    Chain, Layer1Asset,
+    Layer1Asset,
 };
 
 #[test]
@@ -409,7 +409,7 @@ fn lifecycle() {
                     "btc-btc".to_string(),
                     Decimal::percent(33),
                     Some(test_env.swaps[0].1.address.to_string()),
-                    OracleConfig::Layer1(Layer1Asset::new(Chain::Btc, "BTC")),
+                    OracleConfig::Layer1(Layer1Asset::new("BTC", "BTC")),
                     Decimal::percent(0),
                     Decimal::percent(25),
                 ),
@@ -418,7 +418,7 @@ fn lifecycle() {
                     Decimal::percent(34),
                     None,
                     OracleConfig::Layer1(Layer1Asset::new(
-                        Chain::Eth,
+                        "ETH",
                         "USDC-0XA0B86991C6218B36C1D19D4A2E9EB0CE3606EB48",
                     )),
                     Decimal::percent(0),
@@ -428,7 +428,7 @@ fn lifecycle() {
                     "eth-eth".to_string(),
                     Decimal::percent(33),
                     Some(eth_eth_swap.address.to_string()),
-                    OracleConfig::Layer1(Layer1Asset::new(Chain::Eth, "ETH")),
+                    OracleConfig::Layer1(Layer1Asset::new("ETH", "ETH")),
                     Decimal::percent(0),
                     Decimal::percent(25), // set the slippage very high to make sure the swap succeed
                 ),
@@ -632,7 +632,7 @@ fn cannot_remove_allocation_with_non_zero_balance() {
             "eth-usdc".to_string(),
             Decimal::percent(100),
             None,
-            OracleConfig::Layer1(Layer1Asset::new(Chain::Btc, "BTC")),
+            OracleConfig::Layer1(Layer1Asset::new("BTC", "BTC")),
             Decimal::percent(0),
             Decimal::percent(1),
         )],
@@ -690,7 +690,7 @@ fn add_contract_wrong_denom() {
                     "btc-btc".to_string(),
                     Decimal::percent(50),
                     Some(wrong_denom_contract.address.to_string()),
-                    OracleConfig::Layer1(Layer1Asset::new(Chain::Btc, "BTC")),
+                    OracleConfig::Layer1(Layer1Asset::new("BTC", "BTC")),
                     Decimal::percent(0),
                     Decimal::percent(1),
                 ),
@@ -699,7 +699,7 @@ fn add_contract_wrong_denom() {
                     Decimal::percent(50),
                     None,
                     OracleConfig::Layer1(Layer1Asset::new(
-                        Chain::Eth,
+                        "ETH",
                         "USDC-0XA0B86991C6218B36C1D19D4A2E9EB0CE3606EB48",
                     )),
                     Decimal::percent(0),
@@ -1237,7 +1237,7 @@ fn test_add_allocation_denom_validation() {
                     "btc-btc".to_string(),
                     Decimal::percent(50),
                     Some(btc_btc_swap.1.address.to_string()),
-                    OracleConfig::Layer1(Layer1Asset::new(Chain::Btc, "BTC")),
+                    OracleConfig::Layer1(Layer1Asset::new("BTC", "BTC")),
                     Decimal::percent(0),
                     Decimal::percent(1),
                 ),
@@ -1246,7 +1246,7 @@ fn test_add_allocation_denom_validation() {
                     Decimal::percent(50),
                     None,
                     OracleConfig::Layer1(Layer1Asset::new(
-                        Chain::Eth,
+                        "ETH",
                         "USDC-0XA0B86991C6218B36C1D19D4A2E9EB0CE3606EB48",
                     )),
                     Decimal::percent(0),
@@ -1289,7 +1289,7 @@ fn test_add_allocation_denom_validation() {
                     "btc-btc".to_string(),
                     Decimal::percent(50),
                     Some(flipped_swap.address.to_string()),
-                    OracleConfig::Layer1(Layer1Asset::new(Chain::Btc, "BTC")),
+                    OracleConfig::Layer1(Layer1Asset::new("BTC", "BTC")),
                     Decimal::percent(0),
                     Decimal::percent(1),
                 ),
@@ -1298,7 +1298,7 @@ fn test_add_allocation_denom_validation() {
                     Decimal::percent(50),
                     None,
                     OracleConfig::Layer1(Layer1Asset::new(
-                        Chain::Eth,
+                        "ETH",
                         "USDC-0XA0B86991C6218B36C1D19D4A2E9EB0CE3606EB48",
                     )),
                     Decimal::percent(0),
@@ -1344,7 +1344,7 @@ fn test_add_allocation_denom_validation() {
                     "invalid-denom".to_string(),
                     Decimal::percent(50),
                     Some(invalid_swap.address.to_string()),
-                    OracleConfig::Layer1(Layer1Asset::new(Chain::Btc, "BTC")),
+                    OracleConfig::Layer1(Layer1Asset::new("BTC", "BTC")),
                     Decimal::percent(0),
                     Decimal::percent(1),
                 ),
@@ -1353,7 +1353,7 @@ fn test_add_allocation_denom_validation() {
                     Decimal::percent(50),
                     None,
                     OracleConfig::Layer1(Layer1Asset::new(
-                        Chain::Eth,
+                        "ETH",
                         "USDC-0XA0B86991C6218B36C1D19D4A2E9EB0CE3606EB48",
                     )),
                     Decimal::percent(0),
@@ -1364,7 +1364,6 @@ fn test_add_allocation_denom_validation() {
         .unwrap_err();
     assert_eq!(res.root_cause().to_string(), "Invalid denom pair");
 }
-
 
 #[test]
 fn test_update_allocations() {
@@ -1401,10 +1400,12 @@ fn test_update_allocations() {
         None,
         "quote",
     )
-        .unwrap();
+    .unwrap();
 
     // Successful allocation update
+    println!("I'm here");
     let eth_eth_swap = MockFin::new(&mut test_env.app, "eth-eth", "eth-usdc");
+    println!("I'm not here");
     let fair_price_eth = Decimal::from_str("2500").unwrap();
     let owner = test_env.app.api().addr_make("owner");
     eth_eth_swap
@@ -1426,7 +1427,7 @@ fn test_update_allocations() {
             "btc-btc".to_string(),
             Decimal::percent(30),
             Some(test_env.swaps[0].1.address.to_string()),
-            OracleConfig::Layer1(Layer1Asset::new(Chain::Btc, "BTC")),
+            OracleConfig::Layer1(Layer1Asset::new("BTC", "BTC")),
             Decimal::percent(0),
             Decimal::percent(1),
         ),
@@ -1435,7 +1436,7 @@ fn test_update_allocations() {
             Decimal::percent(40),
             None,
             OracleConfig::Layer1(Layer1Asset::new(
-                Chain::Eth,
+                "ETH",
                 "USDC-0XA0B86991C6218B36C1D19D4A2E9EB0CE3606EB48",
             )),
             Decimal::percent(0),
@@ -1445,7 +1446,7 @@ fn test_update_allocations() {
             "eth-eth".to_string(),
             Decimal::percent(30),
             Some(eth_eth_swap.address.to_string()),
-            OracleConfig::Layer1(Layer1Asset::new(Chain::Eth, "ETH")),
+            OracleConfig::Layer1(Layer1Asset::new("ETH", "ETH")),
             Decimal::percent(0),
             Decimal::percent(1),
         ),
@@ -1492,7 +1493,7 @@ fn test_update_allocations() {
             "btc-btc".to_string(),
             Decimal::percent(50),
             Some(test_env.swaps[0].1.address.to_string()),
-            OracleConfig::Layer1(Layer1Asset::new(Chain::Btc, "BTC")),
+            OracleConfig::Layer1(Layer1Asset::new("BTC", "BTC")),
             Decimal::percent(0),
             Decimal::percent(1),
         ),
@@ -1501,7 +1502,7 @@ fn test_update_allocations() {
             Decimal::percent(60),
             None,
             OracleConfig::Layer1(Layer1Asset::new(
-                Chain::Eth,
+                "ETH",
                 "USDC-0XA0B86991C6218B36C1D19D4A2E9EB0CE3606EB48",
             )),
             Decimal::percent(0),
@@ -1544,27 +1545,26 @@ fn test_update_allocations() {
         .execute_run(&mut test_env.app, "user")
         .unwrap();
 
-    let btc_balance = test_env
-        .app
-        .query_balance(&test_env.index.address.as_str(), "btc-btc", false);
+    let btc_balance =
+        test_env
+            .app
+            .query_balance(&test_env.index.address.as_str(), "btc-btc", false);
     assert!(
         btc_balance > Uint128::zero(),
         "Contract should hold btc-btc after rebalance"
     );
 
-    let remove_btc_allocation = vec![
-        AssetAllocation::new(
-            "eth-usdc".to_string(),
-            Decimal::percent(100),
-            None,
-            OracleConfig::Layer1(Layer1Asset::new(
-                Chain::Eth,
-                "USDC-0XA0B86991C6218B36C1D19D4A2E9EB0CE3606EB48",
-            )),
-            Decimal::percent(0),
-            Decimal::percent(1),
-        ),
-    ];
+    let remove_btc_allocation = vec![AssetAllocation::new(
+        "eth-usdc".to_string(),
+        Decimal::percent(100),
+        None,
+        OracleConfig::Layer1(Layer1Asset::new(
+            "ETH",
+            "USDC-0XA0B86991C6218B36C1D19D4A2E9EB0CE3606EB48",
+        )),
+        Decimal::percent(0),
+        Decimal::percent(1),
+    )];
     let res = test_env
         .index
         .sudo_update_allocation(&mut test_env.app, remove_btc_allocation);
@@ -1580,7 +1580,7 @@ fn test_update_allocations() {
             "btc-btc".to_string(),
             Decimal::percent(50),
             None,
-            OracleConfig::Layer1(Layer1Asset::new(Chain::Btc, "BTC")),
+            OracleConfig::Layer1(Layer1Asset::new("BTC", "BTC")),
             Decimal::percent(0),
             Decimal::percent(1),
         ),
@@ -1589,7 +1589,7 @@ fn test_update_allocations() {
             Decimal::percent(50),
             None,
             OracleConfig::Layer1(Layer1Asset::new(
-                Chain::Eth,
+                "ETH",
                 "USDC-0XA0B86991C6218B36C1D19D4A2E9EB0CE3606EB48",
             )),
             Decimal::percent(0),

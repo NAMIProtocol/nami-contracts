@@ -4,7 +4,7 @@ use nami_rs::{AssetAllocation, FeeRates, OracleConfig};
 use nami_rs_testing::mock_fin::MockFin;
 use nami_rs_testing::mock_nami_app::NamiApp;
 use nami_rs_testing::mock_nami_index_nav::MockNamiIndexNav;
-use rujira_rs::{Chain, Layer1Asset, TokenMetadata};
+use rujira_rs::{Layer1Asset, TokenMetadata};
 use rujira_rs_testing::mock_rujira_app;
 
 pub struct TestEnv {
@@ -77,7 +77,7 @@ fn get_target_allocations(
                     denom.clone(),
                     weight,
                     Some(swap_mock.address.to_string()),
-                    OracleConfig::Layer1(Layer1Asset::new(Chain::Btc, "BTC")),
+                    OracleConfig::Layer1(Layer1Asset::new("BTC", "BTC")),
                     threshold,
                     slippage,
                 ));
@@ -89,7 +89,7 @@ fn get_target_allocations(
                     denom.clone(),
                     weight,
                     Some(swap_mock.address.to_string()),
-                    OracleConfig::Layer1(Layer1Asset::new(Chain::Eth, "ETH")),
+                    OracleConfig::Layer1(Layer1Asset::new("ETH", "ETH")),
                     threshold,
                     slippage,
                 ));
@@ -101,7 +101,7 @@ fn get_target_allocations(
                     weight,
                     None,
                     OracleConfig::Layer1(Layer1Asset::new(
-                        Chain::Eth,
+                        "ETH",
                         "USDC-0XA0B86991C6218B36C1D19D4A2E9EB0CE3606EB48",
                     )),
                     threshold,
@@ -128,7 +128,7 @@ fn get_target_allocations_base_denom(
                     denom.clone(),
                     weight,
                     Some(swap_mock.address.to_string()),
-                    OracleConfig::Layer1(Layer1Asset::new(Chain::Btc, "BTC")),
+                    OracleConfig::Layer1(Layer1Asset::new("BTC", "BTC")),
                     threshold,
                     slippage,
                 ));
@@ -140,7 +140,7 @@ fn get_target_allocations_base_denom(
                     denom.clone(),
                     weight,
                     Some(swap_mock.address.to_string()),
-                    OracleConfig::Layer1(Layer1Asset::new(Chain::Eth, "ETH")),
+                    OracleConfig::Layer1(Layer1Asset::new("ETH", "ETH")),
                     threshold,
                     slippage,
                 ));
@@ -152,7 +152,7 @@ fn get_target_allocations_base_denom(
                     weight,
                     None,
                     OracleConfig::Layer1(Layer1Asset::new(
-                        Chain::Eth,
+                        "ETH",
                         "USDC-0XA0B86991C6218B36C1D19D4A2E9EB0CE3606EB48",
                     )),
                     threshold,

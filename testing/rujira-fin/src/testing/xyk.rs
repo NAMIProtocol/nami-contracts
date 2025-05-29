@@ -10,7 +10,7 @@ use rujira_rs::{
         BookItemResponse, BookResponse, Denoms, ExecuteMsg, InstantiateMsg, OrderResponse,
         OrdersResponse, Price, QueryMsg, Side, SwapRequest, Tick,
     },
-    Chain, Layer1Asset, TokenMetadata,
+    Layer1Asset, TokenMetadata,
 };
 use rujira_rs_testing::{mock_rujira_app, RujiraApp};
 
@@ -58,11 +58,8 @@ fn setup(app: &mut RujiraApp, owner: &Addr, fees: &Addr) -> (Addr, Addr) {
             &InstantiateMsg {
                 denoms: Denoms::new("btc", "usdc"),
                 oracles: Some([
-                    Layer1Asset::new(Chain::Btc, "BTC"),
-                    Layer1Asset::new(
-                        Chain::Eth,
-                        "USDC-0XA0B86991C6218B36C1D19D4A2E9EB0CE3606EB48",
-                    ),
+                    Layer1Asset::new("BTC", "BTC"),
+                    Layer1Asset::new("ETH", "USDC-0XA0B86991C6218B36C1D19D4A2E9EB0CE3606EB48"),
                 ]),
                 market_maker: Some(bow.to_string()),
                 tick: Tick::new(8),
@@ -114,7 +111,10 @@ fn mm_book() {
     app.execute_contract(
         owner.clone(),
         bow.clone(),
-        &bow::ExecuteMsg::Deposit { callback: None },
+        &bow::ExecuteMsg::Deposit {
+            callback: None,
+            min_return: None,
+        },
         // 2 BTC @ 100k USDC
         &[coin(200_000_000, "btc"), coin(200_000_000_000, "usdc")],
     )
@@ -329,7 +329,10 @@ fn combined_book() {
     app.execute_contract(
         owner.clone(),
         bow.clone(),
-        &bow::ExecuteMsg::Deposit { callback: None },
+        &bow::ExecuteMsg::Deposit {
+            callback: None,
+            min_return: None,
+        },
         // 2 BTC @ 100k USDC
         &[coin(20_000_000, "btc"), coin(2_000_000_000_000, "usdc")],
     )
@@ -548,7 +551,10 @@ fn test_arbitrage_quote_single() {
     app.execute_contract(
         owner.clone(),
         bow.clone(),
-        &bow::ExecuteMsg::Deposit { callback: None },
+        &bow::ExecuteMsg::Deposit {
+            callback: None,
+            min_return: None,
+        },
         // 2 BTC @ 100k USDC
         &[coin(200_000_000, "btc"), coin(200_000_000_000, "usdc")],
     )
@@ -646,7 +652,10 @@ fn test_arbitrage_quote_multi() {
     app.execute_contract(
         owner.clone(),
         bow.clone(),
-        &bow::ExecuteMsg::Deposit { callback: None },
+        &bow::ExecuteMsg::Deposit {
+            callback: None,
+            min_return: None,
+        },
         // 2 BTC @ 100k USDC
         &[coin(200_000_000, "btc"), coin(200_000_000_000, "usdc")],
     )
