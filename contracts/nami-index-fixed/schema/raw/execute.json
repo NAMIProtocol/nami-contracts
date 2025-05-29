@@ -1,6 +1,82 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "ExecuteMsg",
-  "type": "string",
-  "enum": []
+  "oneOf": [
+    {
+      "type": "object",
+      "required": [
+        "deposit"
+      ],
+      "properties": {
+        "deposit": {
+          "type": "object",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "withdraw"
+      ],
+      "properties": {
+        "withdraw": {
+          "type": "object",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "callback"
+      ],
+      "properties": {
+        "callback": {
+          "$ref": "#/definitions/CallbackMsg"
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "run"
+      ],
+      "properties": {
+        "run": {
+          "type": "object",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  ],
+  "definitions": {
+    "Binary": {
+      "description": "Binary is a wrapper around Vec<u8> to add base64 de/serialization with serde. It also adds some helper methods to help encode inline.\n\nThis is only needed as serde-json-{core,wasm} has a horrible encoding for Vec<u8>. See also <https://github.com/CosmWasm/cosmwasm/blob/main/docs/MESSAGE_TYPES.md>.",
+      "type": "string"
+    },
+    "CallbackData": {
+      "$ref": "#/definitions/Binary"
+    },
+    "CallbackMsg": {
+      "type": "object",
+      "required": [
+        "callback",
+        "data"
+      ],
+      "properties": {
+        "callback": {
+          "$ref": "#/definitions/CallbackData"
+        },
+        "data": {
+          "$ref": "#/definitions/Binary"
+        }
+      },
+      "additionalProperties": false
+    }
+  }
 }

@@ -1,0 +1,14 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "SwapContractResponse",
+  "type": "object",
+  "required": [
+    "contract"
+  ],
+  "properties": {
+    "contract": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": false
+}

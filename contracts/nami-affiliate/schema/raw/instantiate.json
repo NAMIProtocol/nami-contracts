@@ -2,5 +2,24 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "InstantiateMsg",
   "type": "object",
+  "required": [
+    "max_affiliate_fee_bps"
+  ],
+  "properties": {
+    "max_affiliate_fee_bps": {
+      "type": "integer",
+      "format": "uint16",
+      "minimum": 0.0
+    },
+    "whitelist": {
+      "type": [
+        "array",
+        "null"
+      ],
+      "items": {
+        "type": "string"
+      }
+    }
+  },
   "additionalProperties": false
 }

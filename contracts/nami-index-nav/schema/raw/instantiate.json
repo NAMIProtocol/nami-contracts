@@ -2,5 +2,197 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "InstantiateMsg",
   "type": "object",
-  "additionalProperties": false
+  "required": [
+    "fee_collector",
+    "fees",
+    "quote_denom",
+    "receipt",
+    "target_allocation"
+  ],
+  "properties": {
+    "fee_collector": {
+      "type": "string"
+    },
+    "fees": {
+      "$ref": "#/definitions/FeeRates"
+    },
+    "quote_denom": {
+      "type": "string"
+    },
+    "receipt": {
+      "$ref": "#/definitions/TokenMetadata"
+    },
+    "target_allocation": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/AssetAllocation_for_OracleConfig"
+      }
+    }
+  },
+  "additionalProperties": false,
+  "definitions": {
+    "AssetAllocation_for_OracleConfig": {
+      "type": "object",
+      "required": [
+        "denom",
+        "oracle",
+        "slippage",
+        "threshold",
+        "weight"
+      ],
+      "properties": {
+        "denom": {
+          "type": "string"
+        },
+        "oracle": {
+          "$ref": "#/definitions/OracleConfig"
+        },
+        "slippage": {
+          "$ref": "#/definitions/Decimal"
+        },
+        "swap_contract": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "threshold": {
+          "$ref": "#/definitions/Decimal"
+        },
+        "weight": {
+          "$ref": "#/definitions/Decimal"
+        }
+      },
+      "additionalProperties": false
+    },
+    "Chain": {
+      "type": "string",
+      "enum": [
+        "avax",
+        "bch",
+        "bsc",
+        "btc",
+        "doge",
+        "eth",
+        "gaia",
+        "ltc",
+        "thor"
+      ]
+    },
+    "Decimal": {
+      "description": "A fixed-point decimal value with 18 fractional digits, i.e. Decimal(1_000_000_000_000_000_000) == 1.0\n\nThe greatest possible value that can be represented is 340282366920938463463.374607431768211455 (which is (2^128 - 1) / 10^18)",
+      "type": "string"
+    },
+    "FeeRates": {
+      "description": "Configuration of optional fee rates.\n\n- `management`: annualized fee rate (e.g., 0.02 for 2% per year) - `performance`: performance fee rate applied to gains above the high‐water mark - `transaction`: fee rate applied to each transaction",
+      "type": "object",
+      "properties": {
+        "management": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/Decimal"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "performance": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/Decimal"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "transaction": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/Decimal"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "Layer1Asset": {
+      "type": "object",
+      "required": [
+        "chain",
+        "symbol"
+      ],
+      "properties": {
+        "chain": {
+          "$ref": "#/definitions/Chain"
+        },
+        "symbol": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "OracleConfig": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [
+            "layer1"
+          ],
+          "properties": {
+            "layer1": {
+              "$ref": "#/definitions/Layer1Asset"
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "TokenMetadata": {
+      "description": "Metadata represents a struct that describes a basic token.\n\nIt follows the general structure of the x/bank Metadata, however `denom` is omitted, and injected with the correct string",
+      "type": "object",
+      "required": [
+        "description",
+        "display",
+        "name",
+        "symbol"
+      ],
+      "properties": {
+        "description": {
+          "type": "string"
+        },
+        "display": {
+          "description": "display indicates the suggested denom that should be displayed in clients.",
+          "type": "string"
+        },
+        "name": {
+          "description": "name defines the name of the token (eg: ruji)",
+          "type": "string"
+        },
+        "symbol": {
+          "description": "symbol is the token symbol usually shown on exchanges (eg: RUJI). This can be the same as the display.",
+          "type": "string"
+        },
+        "uri": {
+          "description": "URI to a document (on or off-chain) that contains additional information. Optional.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "uri_hash": {
+          "description": "URIHash is a sha256 hash of a document pointed by URI. It's used to verify that the document didn't change. Optional.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false
+    }
+  }
 }
