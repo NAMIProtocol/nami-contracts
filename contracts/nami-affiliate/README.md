@@ -1,5 +1,9 @@
 # nami-affiliate
 
+### Audit Report
+The audit report by Halborn can be found [here](https://www.halborn.com/audits/thorchain/nami-protocol-rujira-index-product-0612c8).
+
+
 ### Technical Overview
 `nami-affiliate` is a CosmWasm contract designed to facilitate affiliate fee distribution for transactions. It supports executing messages to a target contract while optionally deducting affiliate fees from the input funds. The contract ensures fees are calculated based on a basis points (bps) system and sent to an affiliate address, with the remaining funds forwarded to the target contract. It also includes a callback mechanism to return residual balances to the sender.
 

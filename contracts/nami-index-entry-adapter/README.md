@@ -1,5 +1,9 @@
 # nami-index-entry-adapter
 
+### Audit Report
+The audit report by Halborn can be found [here](https://www.halborn.com/audits/thorchain/nami-protocol-rujira-index-product-0612c8).
+
+
 ### Technical Overview
 `nami-index-entry-adapter` is a CosmWasm contract that serves as an adapter for interacting with **nami-index-fixed** contract, facilitating deposits and withdrawals with token swaps. It supports multi-step operations, including swapping input tokens to a quote denomination, depositing into an index, and handling residual funds. The contract uses a callback mechanism (`ExecuteMsg::Then`) to chain operations and manage swap contracts via sudo messages.
 

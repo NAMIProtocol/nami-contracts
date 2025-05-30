@@ -1,5 +1,9 @@
 # nami-index-fixed
 
+### Audit Report
+The audit report by Halborn can be found [here](https://www.halborn.com/audits/thorchain/nami-protocol-rujira-index-product-0612c8).
+
+
 ### Technical Overview
 `nami-index-fixed` is a CosmWasm contract implementing a fixed-unit index strategy. Each receipt token represents a deterministic basket of tokens. The contract supports exact-ratio deposits, proportional withdrawals, and a reallocation entry point protected by `sudo`. Reallocation is assumed to be a two-leg token swap. For example, swapping Token A to Token B is done via `Token A -> base_token -> Token B`.
 

@@ -1,5 +1,9 @@
 # nami-index-nav
 
+### Audit Report
+The audit report by Halborn can be found [here](https://www.halborn.com/audits/thorchain/nami-protocol-rujira-index-product-0612c8).
+
+
 ### Technical Overview
 `nami-index-nav` is a CosmWasm contract implementing a net asset value (NAV)-based index strategy. Each receipt token represents a proportional claim on the total value of the fund. Deposits and withdrawals are made in `quote_denom` (e.g., USDC), and the fund's NAV is determined using external price feeds. Rebalancing is permissionless and triggered via the `Run` entry point.
 
