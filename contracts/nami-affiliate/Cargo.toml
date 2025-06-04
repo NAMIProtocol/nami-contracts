@@ -6,6 +6,19 @@ edition = { workspace = true }
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[package.metadata.thorchain]
+audits = [
+    "https://www.halborn.com/audits/thorchain/nami-protocol-rujira-index-product-0612c8"
+]
+auditors = [
+    "Halborn"
+]
+docs = "https://docs.rujira.network/products/ruji-index"
+commit = "3efb8706f2438323d5dbae29c337a11a6509de30"
+deployers = [
+    "thor1zjwanvezcjp6hefgt6vqfnrrdm8yj9za3s8ss0"
+]
+
 [lib]
 crate-type = ["cdylib", "rlib"]
 
