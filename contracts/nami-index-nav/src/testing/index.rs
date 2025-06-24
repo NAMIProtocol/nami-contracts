@@ -13,6 +13,43 @@ pub struct TestEnv {
     pub swaps: Vec<(String, MockFin)>,
 }
 
+pub fn empty_setup(balances: Vec<(&str, Vec<Coin>)>) -> anyhow::Result<TestEnv> {
+    let mut nami_app = NamiApp::new(mock_rujira_app());
+
+    for (addr, coins) in balances {
+        nami_app.add_balance(addr, coins, true);
+    }
+    let fee_collector = nami_app.api().addr_make("fee_collector");
+
+    let index = MockNamiIndexNav::new(
+        &mut nami_app,
+        InstantiateMsg {
+            quote_denom: "eth-usdc".to_string(),
+            fee_collector: fee_collector.to_string(),
+            fees: FeeRates {
+                management: Some(Decimal::percent(1)),
+                performance: None,
+                transaction: Some(Decimal::percent(3)),
+            },
+            receipt: TokenMetadata {
+                name: "".to_string(),
+                symbol: "".to_string(),
+                description: "".to_string(),
+                display: "".to_string(),
+                uri: None,
+                uri_hash: None,
+            },
+            target_allocation: vec![],
+        },
+    )?;
+
+    Ok(TestEnv {
+        app: nami_app,
+        index,
+        swaps: vec![],
+    })
+}
+
 pub fn setup(
     balances: Vec<(&str, Vec<Coin>)>,
     quote_denom: String,

@@ -164,6 +164,12 @@ impl<'a> Vault<'a> {
         Ok((quote, others))
     }
 
+    pub fn quote_price(&self, storage: &dyn Storage) -> Result<Decimal, ContractError> {
+        let quote_asset = ALLOCATIONS.load(storage, self.quote_denom.as_str())?;
+        let (_, price, _) = quote_asset.snapshot(&self.address, self.querier)?;
+        Ok(price)
+    }
+
     pub fn nav(
         &self,
         storage: &dyn Storage,
@@ -184,7 +190,7 @@ impl<'a> Vault<'a> {
                 })?;
 
         if shares.is_zero() {
-            return Ok(Decimal::one());
+            return Ok(q_price);
         }
         let share_ratio = Decimal::from_ratio(shares, Uint128::one());
         Ok(total.checked_div(share_ratio)?)

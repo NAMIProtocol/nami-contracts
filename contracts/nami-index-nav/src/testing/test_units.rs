@@ -4,10 +4,13 @@ use crate::testing::index;
 use cosmwasm_std::{coin, coins, Decimal, Event, Uint128};
 use nami_rs::{AssetAllocation, FeeManager, FeeRates, OracleConfig};
 use nami_rs_testing::mock_fin::MockFin;
+use nami_rs_testing::mock_nami_app::NamiApp;
+use nami_rs_testing::mock_nami_index_nav::MockNamiIndexNav;
 use rujira_rs::{
     fin::{Price, Side},
-    Layer1Asset,
+    Layer1Asset, TokenMetadata,
 };
+use rujira_rs_testing::mock_rujira_app;
 
 #[test]
 fn base_lifecycle() {
@@ -1604,4 +1607,181 @@ fn test_update_allocations() {
         .unwrap_err()
         .to_string()
         .contains("Missing or duplicate quote allocation"));
+}
+
+#[test]
+fn test_minting_receipt() {
+    let balances = vec![
+        ("user", vec![coin(10_000_000_000, "btc-btc")]),
+        (
+            "owner",
+            vec![
+                coin(100_000_000_000, "eth-usdc"),
+                coin(100_000_000_000, "btc-btc"),
+            ],
+        ),
+    ];
+
+    let mut nami_app = NamiApp::new(mock_rujira_app());
+
+    for (addr, coins) in balances {
+        nami_app.add_balance(addr, coins, true);
+    }
+
+    let fee_collector = nami_app.api().addr_make("fee_collector");
+    let swap_mock = MockFin::new(&mut nami_app, "btc-btc", "eth-usdc");
+
+    let index = MockNamiIndexNav::new(
+        &mut nami_app,
+        nami_rs::index_nav::InstantiateMsg {
+            quote_denom: "btc-btc".to_string(),
+            fee_collector: fee_collector.to_string(),
+            fees: FeeRates {
+                management: None,
+                performance: None,
+                transaction: None,
+            },
+            receipt: TokenMetadata {
+                name: "".to_string(),
+                symbol: "".to_string(),
+                description: "".to_string(),
+                display: "".to_string(),
+                uri: None,
+                uri_hash: None,
+            },
+            target_allocation: vec![
+                AssetAllocation::new(
+                    "btc-btc".to_string(),
+                    Decimal::percent(50),
+                    None,
+                    // price of oracle is 100100
+                    OracleConfig::Layer1(Layer1Asset::new("BTC", "BTC")),
+                    Decimal::percent(0),
+                    Decimal::percent(1),
+                ),
+                AssetAllocation::new(
+                    "eth-usdc".to_string(),
+                    Decimal::percent(50),
+                    Some(swap_mock.address.to_string()),
+                    // price of oracle is 1.001
+                    OracleConfig::Layer1(Layer1Asset::new(
+                        "ETH",
+                        "USDC-0XA0B86991C6218B36C1D19D4A2E9EB0CE3606EB48",
+                    )),
+                    Decimal::percent(0),
+                    Decimal::percent(1),
+                ),
+            ],
+        },
+    )
+    .unwrap();
+
+    let rcpt_denom = format!("x/nami-index-nav-{}-rcpt", index.address);
+
+    // Check NAV before deposit should always be the price of the quote denom if no rebalance or no time passed
+    let status = index.query_status(&mut nami_app).unwrap();
+    assert_eq!(status.nav, Decimal::from_str("100100").unwrap());
+
+    index
+        .execute_deposit(&mut nami_app, "user", coins(50u128, "btc-btc"))
+        .unwrap();
+
+    // Check NAV after deposit should always be the price of the quote denom if no rebalance or no time passed
+    let status = index.query_status(&mut nami_app).unwrap();
+    assert_eq!(status.nav, Decimal::from_str("100100").unwrap());
+
+    // total shares should be 50
+    assert_eq!(status.shares, Uint128::from(50u128));
+
+    // check the balance of user on shares
+    let balance = nami_app.query_balance("user", &rcpt_denom, true);
+    assert_eq!(balance, Uint128::from(50u128));
+
+    index
+        .execute_deposit(&mut nami_app, "user", coins(50u128, "btc-btc"))
+        .unwrap();
+
+    // check the balance of user on shares
+    let balance = nami_app.query_balance("user", &rcpt_denom, true);
+    assert_eq!(balance, Uint128::from(100u128));
+
+    // Check NAV after deposit should stay always be the price of the quote denom if no rebalance or no time passed
+    let status = index.query_status(&mut nami_app).unwrap();
+    assert_eq!(status.nav, Decimal::from_str("100100").unwrap());
+    // total value should be 100 * 100100 = 10010000
+    assert_eq!(status.total_value, Uint128::from(10_010_000u128));
+
+    // total shares should be 100
+    assert_eq!(status.shares, Uint128::from(100u128));
+
+    let owner = nami_app.api().addr_make("owner");
+    let order = vec![(
+        Side::Quote,
+        Price::Fixed(Decimal::from_str("100100").unwrap()),
+        Some(Uint128::from(100_000_000_000u128)),
+    )];
+    swap_mock
+        .execute_order(
+            &mut nami_app,
+            &owner,
+            vec![coin(100_000_000_000, "eth-usdc")],
+            order,
+        )
+        .unwrap();
+
+    // Run should swap 100 / 2 = 50 btc in eth-usdc receiving 50 * 100100 = 5_005_000 eth-usdc
+    index.execute_run(&mut nami_app, "user").unwrap();
+
+    let usdc_balance = nami_app.query_balance(&index.address.as_str(), "eth-usdc", false);
+    assert_eq!(usdc_balance, Uint128::from(5_005_000u128));
+
+    // Check NAV after run should not reduce if no fee are taken from the orderbook
+    // Total value should be
+    // 5_005_000 usdc * 1.001 = 5_010_005 usd
+    // 50 btc * 100_100 = 5_005_000 usd
+    // Total value = 5_010_005 + 5_005_000 = 10_015_005 usd
+    let status = index.query_status(&mut nami_app).unwrap();
+    assert_eq!(status.total_value, Uint128::from(10_015_005u128));
+    assert_eq!(status.shares, Uint128::from(100u128));
+
+    // NAV should be 10_015_005 / 100 = 100_150.05
+    assert_eq!(status.nav, Decimal::from_str("100150.05").unwrap());
+
+    // New deposit
+    index
+        .execute_deposit(&mut nami_app, "user", coins(50u128, "btc-btc"))
+        .unwrap();
+
+    // Check NAV after deposit should stay always be the price of the quote denom if no rebalance or no time passed
+    let status = index.query_status(&mut nami_app).unwrap();
+
+    // total shares should be
+    // old shares = 100
+    // new shares =  amount * price / nav
+    // new shares = 50 * 100100 / 100150.05 = 49.95 = 49 rounded floor
+    // total shares = 100 + 49 = 149
+    assert_eq!(status.shares, Uint128::from(149u128));
+
+    // check the balance of user on shares
+    let balance = nami_app.query_balance("user", &rcpt_denom, true);
+    assert_eq!(balance, Uint128::from(149u128));
+
+    // total value should be previous total value + new deposit value
+    // previous total value = 10_015_005
+    // new deposit value = 50 * 100100 = 5_005_000
+    // total value = 10_015_005 + 5_005_000 = 15_020_005
+
+    // NAV should be 15_020_005 / 149 = 100_805.402684563758389261
+    // increase of nav due to the rounding floor
+    assert_eq!(
+        status.nav,
+        Decimal::from_str("100805.402684563758389261").unwrap()
+    );
+
+    // total value from the status query is calculated as nav * shares
+    let total = Decimal::from_ratio(149u128, 1u128)
+        .checked_mul(Decimal::from_str("100805.402684563758389261").unwrap())
+        .unwrap()
+        .to_uint_floor();
+    assert_eq!(total, status.total_value);
 }

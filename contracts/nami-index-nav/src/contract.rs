@@ -71,8 +71,10 @@ pub fn execute(
     match msg {
         ExecuteMsg::Deposit {} => {
             let amount = must_pay(&info, &config.quote_denom)?;
+            let q_price = vault.quote_price(deps.storage)?;
             let nav = vault.nav(deps.storage, Some(amount), rcpt.supply(deps.querier)?)?;
             let minted = Decimal::from_ratio(amount, Uint128::one())
+                .checked_mul(q_price)?
                 .checked_div(nav)?
                 .to_uint_floor();
             if minted.is_zero() {
