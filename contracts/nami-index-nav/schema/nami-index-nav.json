@@ -1,6 +1,6 @@
 {
   "contract_name": "nami-index-nav",
-  "contract_version": "1.0.0",
+  "contract_version": "1.0.1",
   "idl_version": "1.0.0",
   "instantiate": {
     "$schema": "http://json-schema.org/draft-07/schema#",
@@ -333,19 +333,10 @@
         ],
         "properties": {
           "update_allocation": {
-            "type": "object",
-            "required": [
-              "target_allocation"
-            ],
-            "properties": {
-              "target_allocation": {
-                "type": "array",
-                "items": {
-                  "$ref": "#/definitions/AssetAllocation_for_OracleConfig"
-                }
-              }
-            },
-            "additionalProperties": false
+            "type": "array",
+            "items": {
+              "$ref": "#/definitions/AssetAllocation_for_OracleConfig"
+            }
           }
         },
         "additionalProperties": false
@@ -576,23 +567,7 @@
         "allocation": {
           "type": "array",
           "items": {
-            "type": "array",
-            "items": [
-              {
-                "type": "string"
-              },
-              {
-                "$ref": "#/definitions/Uint128"
-              },
-              {
-                "$ref": "#/definitions/Decimal"
-              },
-              {
-                "$ref": "#/definitions/Decimal"
-              }
-            ],
-            "maxItems": 4,
-            "minItems": 4
+            "$ref": "#/definitions/AllocationResponse"
           }
         },
         "nav": {
@@ -607,6 +582,44 @@
       },
       "additionalProperties": false,
       "definitions": {
+        "AllocationResponse": {
+          "type": "object",
+          "required": [
+            "balance",
+            "denom",
+            "price",
+            "slippage",
+            "threshold",
+            "weight"
+          ],
+          "properties": {
+            "balance": {
+              "$ref": "#/definitions/Uint128"
+            },
+            "denom": {
+              "type": "string"
+            },
+            "price": {
+              "$ref": "#/definitions/Decimal"
+            },
+            "slippage": {
+              "$ref": "#/definitions/Decimal"
+            },
+            "swap_contract": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "threshold": {
+              "$ref": "#/definitions/Decimal"
+            },
+            "weight": {
+              "$ref": "#/definitions/Decimal"
+            }
+          },
+          "additionalProperties": false
+        },
         "Decimal": {
           "description": "A fixed-point decimal value with 18 fractional digits, i.e. Decimal(1_000_000_000_000_000_000) == 1.0\n\nThe greatest possible value that can be represented is 340282366920938463463.374607431768211455 (which is (2^128 - 1) / 10^18)",
           "type": "string"

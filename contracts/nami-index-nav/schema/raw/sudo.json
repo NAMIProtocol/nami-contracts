@@ -36,19 +36,10 @@
       ],
       "properties": {
         "update_allocation": {
-          "type": "object",
-          "required": [
-            "target_allocation"
-          ],
-          "properties": {
-            "target_allocation": {
-              "type": "array",
-              "items": {
-                "$ref": "#/definitions/AssetAllocation_for_OracleConfig"
-              }
-            }
-          },
-          "additionalProperties": false
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/AssetAllocation_for_OracleConfig"
+          }
         }
       },
       "additionalProperties": false
