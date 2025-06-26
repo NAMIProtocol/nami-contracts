@@ -14,7 +14,7 @@ auditors = [
     "Halborn"
 ]
 docs = "https://docs.rujira.network/products/ruji-index"
-commit = "55e39ea8013f32662bc33636ba64f53c0cde5337"
+commit = "0e1f2ea4ca9d8a7130d13b0de5c0d4914154c1a0"
 deployers = [
     "thor1zjwanvezcjp6hefgt6vqfnrrdm8yj9za3s8ss0"
 ]
