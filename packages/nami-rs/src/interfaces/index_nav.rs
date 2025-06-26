@@ -26,9 +26,7 @@ pub enum SudoMsg {
         fee_collector: Option<String>,
         fees: FeeRates,
     },
-    UpdateAllocation {
-        target_allocation: Vec<AssetAllocation<OracleConfig>>,
-    },
+    UpdateAllocation(Vec<AssetAllocation<OracleConfig>>),
 }
 
 #[cw_serde]
@@ -43,6 +41,9 @@ pub enum QueryMsg {
 }
 
 #[cw_serde]
+pub enum MigrateMsg {}
+
+#[cw_serde]
 pub struct ConfigResponse {
     pub quote_denom: String,
     pub fee_collector: String,
@@ -53,5 +54,16 @@ pub struct VaultStatusResponse {
     pub nav: Decimal,
     pub shares: Uint128,
     pub total_value: Uint128,
-    pub allocation: Vec<(String, Uint128, Decimal, Decimal)>,
+    pub allocation: Vec<AllocationResponse>,
+}
+
+#[cw_serde]
+pub struct AllocationResponse {
+    pub denom: String,
+    pub swap_contract: Option<String>,
+    pub balance: Uint128,
+    pub price: Decimal,
+    pub weight: Decimal,
+    pub threshold: Decimal,
+    pub slippage: Decimal,
 }

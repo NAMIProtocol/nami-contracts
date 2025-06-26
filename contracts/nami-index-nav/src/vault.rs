@@ -6,6 +6,7 @@ use cosmwasm_std::{
 };
 use cw_storage_plus::Map;
 use nami_rs::asset_allocation::AssetAllocation;
+use nami_rs::index_nav::AllocationResponse;
 use nami_rs::{index_nav::VaultStatusResponse, OracleConfig};
 use rujira_rs::{fin, Oracle};
 
@@ -291,22 +292,28 @@ impl<'a> Vault<'a> {
 
         let (base, others) = self.load_allocations(storage)?;
 
-        let allocs = others
+        let allocation = others
             .into_iter()
             .chain(std::iter::once(base.clone()))
-            .map(
-                |alloc| -> Result<(String, Uint128, Decimal, Decimal), ContractError> {
-                    let (bal, price, _val) = alloc.snapshot(&self.address, self.querier)?;
-                    Ok((alloc.denom, bal, price, alloc.weight))
-                },
-            )
+            .map(|alloc| -> Result<AllocationResponse, ContractError> {
+                let (bal, price, _val) = alloc.snapshot(&self.address, self.querier)?;
+                Ok(AllocationResponse {
+                    denom: alloc.denom,
+                    swap_contract: alloc.swap_contract,
+                    balance: bal,
+                    price,
+                    weight: alloc.weight,
+                    threshold: alloc.threshold,
+                    slippage: alloc.slippage,
+                })
+            })
             .collect::<Result<Vec<_>, _>>()?;
 
         Ok(VaultStatusResponse {
             nav,
             shares,
             total_value,
-            allocation: allocs,
+            allocation,
         })
     }
 

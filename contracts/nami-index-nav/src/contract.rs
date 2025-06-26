@@ -7,8 +7,10 @@ use cosmwasm_std::{
 use cw2::set_contract_version;
 use cw_storage_plus::Item;
 use cw_utils::{must_pay, nonpayable};
-use nami_rs::index_nav::{ConfigResponse, ExecuteMsg, InstantiateMsg, QueryMsg, SudoMsg};
-use nami_rs::{AssetAllocation, FeeManager};
+use nami_rs::index_nav::{
+    ConfigResponse, ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg, SudoMsg,
+};
+use nami_rs::FeeManager;
 use rujira_rs::TokenFactory;
 
 use crate::config::Config;
@@ -150,7 +152,7 @@ pub fn sudo(deps: DepsMut, env: Env, msg: SudoMsg) -> Result<Response, ContractE
             FEE_MANAGER.save(deps.storage, &FeeManager::new(fees, env.block.time)?)?;
             Ok(Response::default())
         }
-        SudoMsg::UpdateAllocation { target_allocation } => {
+        SudoMsg::UpdateAllocation(target_allocation) => {
             vault.update_allocations(deps.storage, target_allocation)?;
             Ok(Response::default())
         }
@@ -177,4 +179,10 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> Result<Binary, ContractErro
             &vault.status(deps.storage, rcpt.supply(deps.querier)?)?,
         )?),
     }
+}
+
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
+    set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+    Ok(Response::default())
 }

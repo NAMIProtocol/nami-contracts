@@ -2,7 +2,7 @@ use std::str::FromStr;
 
 use crate::testing::index;
 use cosmwasm_std::{coin, coins, Decimal, Event, Uint128};
-use nami_rs::{AssetAllocation, FeeManager, FeeRates, OracleConfig};
+use nami_rs::{index_nav::AllocationResponse, AssetAllocation, FeeManager, FeeRates, OracleConfig};
 use nami_rs_testing::mock_fin::MockFin;
 use nami_rs_testing::mock_nami_app::NamiApp;
 use nami_rs_testing::mock_nami_index_nav::MockNamiIndexNav;
@@ -173,18 +173,27 @@ fn base_lifecycle() {
     assert_eq!(
         status.allocation,
         [
-            (
-                "btc-btc".to_string(),
-                Uint128::from(21u128),
-                Decimal::from_str("100100").unwrap(),
-                Decimal::percent(50),
-            ),
-            (
-                "eth-usdc".to_string(),
-                Uint128::from(2_000_000u128),
-                Decimal::from_str("1.001").unwrap(),
-                Decimal::percent(50),
-            ),
+            AllocationResponse {
+                denom: "btc-btc".to_string(),
+                swap_contract: Some(
+                    "cosmwasm1mzdhwvvh22wrt07w59wxyd58822qavwkx5lcej7aqfkpqqlhaqfsgn6fq2"
+                        .to_string()
+                ),
+                balance: Uint128::from(21u128),
+                price: Decimal::from_str("100100").unwrap(),
+                weight: Decimal::percent(50),
+                threshold: Decimal::percent(0),
+                slippage: Decimal::percent(20)
+            },
+            AllocationResponse {
+                denom: "eth-usdc".to_string(),
+                swap_contract: None,
+                balance: Uint128::from(2_000_000u128),
+                price: Decimal::from_str("1.001").unwrap(),
+                weight: Decimal::percent(50),
+                threshold: Decimal::percent(0),
+                slippage: Decimal::percent(1)
+            }
         ]
     );
 }
@@ -460,32 +469,38 @@ fn lifecycle() {
     // Verify allocation
     let status = test_env.index.query_status(&mut test_env.app).unwrap();
     let mut actual_allocations = status.allocation.clone();
-    actual_allocations.sort_by(|a, b| a.0.cmp(&b.0));
+    actual_allocations.sort_by(|a, b| a.denom.cmp(&b.denom));
     let mut expected_allocations = vec![
-        (
-            "btc-btc".to_string(),
-            Uint128::from(21u128),
-            Decimal::from_str("100100").unwrap(),
-            Decimal::percent(33),
-        ),
-        (
-            "eth-usdc".to_string(),
-            Uint128::from(2_000_000u128),
-            Decimal::from_str("1.001").unwrap(),
-            Decimal::percent(34),
-        ),
-        (
-            "eth-eth".to_string(),
-            Uint128::from(100_000_000u128),
-            Decimal::from_str("2500").unwrap(),
-            Decimal::percent(33),
-        ),
+        AllocationResponse {
+            denom: "btc-btc".to_string(),
+            swap_contract: Some(test_env.swaps[0].1.address.to_string()),
+            balance: Uint128::from(21u128),
+            price: Decimal::from_str("100100").unwrap(),
+            weight: Decimal::percent(33),
+            threshold: Decimal::percent(0),
+            slippage: Decimal::percent(25),
+        },
+        AllocationResponse {
+            denom: "eth-usdc".to_string(),
+            swap_contract: None,
+            balance: Uint128::from(2_000_000u128),
+            price: Decimal::from_str("1.001").unwrap(),
+            weight: Decimal::percent(34),
+            threshold: Decimal::percent(0),
+            slippage: Decimal::percent(25),
+        },
+        AllocationResponse {
+            denom: "eth-eth".to_string(),
+            swap_contract: Some(eth_eth_swap.address.to_string()),
+            balance: Uint128::from(100_000_000u128),
+            price: Decimal::from_str("2500").unwrap(),
+            weight: Decimal::percent(33),
+            threshold: Decimal::percent(0),
+            slippage: Decimal::percent(25),
+        },
     ];
-    expected_allocations.sort_by(|a, b| a.0.cmp(&b.0));
-    assert_eq!(
-        actual_allocations, expected_allocations,
-        "All allocations should reflect updated weights"
-    );
+    expected_allocations.sort_by(|a, b| a.denom.cmp(&b.denom));
+    assert_eq!(actual_allocations, expected_allocations);
 
     // Test queries
     let config = test_env.index.query_config(&mut test_env.app).unwrap();
@@ -886,18 +901,27 @@ fn base_lifecycle_with_base_denom() {
     assert_eq!(
         status.allocation,
         [
-            (
-                "btc-btc".to_string(),
-                Uint128::from(20u128),
-                Decimal::from_str("100100").unwrap(),
-                Decimal::percent(50),
-            ),
-            (
-                "eth-usdc".to_string(),
-                Uint128::from(2_000_000u128),
-                Decimal::from_str("1.001").unwrap(),
-                Decimal::percent(50),
-            ),
+            AllocationResponse {
+                denom: "btc-btc".to_string(),
+                swap_contract: Some(
+                    "cosmwasm1mzdhwvvh22wrt07w59wxyd58822qavwkx5lcej7aqfkpqqlhaqfsgn6fq2"
+                        .to_string()
+                ),
+                balance: Uint128::from(20u128),
+                price: Decimal::from_str("100100").unwrap(),
+                weight: Decimal::percent(50),
+                threshold: Decimal::percent(0),
+                slippage: Decimal::percent(1)
+            },
+            AllocationResponse {
+                denom: "eth-usdc".to_string(),
+                swap_contract: None,
+                balance: Uint128::from(2_000_000u128),
+                price: Decimal::from_str("1.001").unwrap(),
+                weight: Decimal::percent(50),
+                threshold: Decimal::percent(0),
+                slippage: Decimal::percent(1)
+            }
         ]
     );
 }
@@ -1263,7 +1287,7 @@ fn test_add_allocation_denom_validation() {
         status
             .allocation
             .iter()
-            .any(|(denom, _, _, _)| denom == "btc-btc"),
+            .any(|allocation| allocation.denom == "btc-btc"),
         "BTC-btc allocation not found"
     );
 
@@ -1315,7 +1339,7 @@ fn test_add_allocation_denom_validation() {
         status
             .allocation
             .iter()
-            .any(|(denom, _, _, _)| denom == "btc-btc"),
+            .any(|allocation| allocation.denom == "btc-btc"),
         "BTC-btc allocation (flipped) not found"
     );
 
@@ -1463,28 +1487,37 @@ fn test_update_allocations() {
     // Verify allocation weights
     let status = test_env.index.query_status(&mut test_env.app).unwrap();
     let mut actual_allocations = status.allocation.clone();
-    actual_allocations.sort_by(|a, b| a.0.cmp(&b.0));
+    actual_allocations.sort_by(|a, b| a.denom.cmp(&b.denom));
     let mut expected_allocations = vec![
-        (
-            "btc-btc".to_string(),
-            Uint128::zero(), // No deposit yet, balances are zero
-            Decimal::from_str("100100").unwrap(),
-            Decimal::percent(30),
-        ),
-        (
-            "eth-usdc".to_string(),
-            Uint128::zero(),
-            Decimal::from_str("1.001").unwrap(),
-            Decimal::percent(40),
-        ),
-        (
-            "eth-eth".to_string(),
-            Uint128::zero(),
-            Decimal::from_str("2500").unwrap(),
-            Decimal::percent(30),
-        ),
+        AllocationResponse {
+            denom: "btc-btc".to_string(),
+            swap_contract: Some(test_env.swaps[0].1.address.to_string()),
+            balance: Uint128::zero(), // No deposit yet, balances are zero
+            price: Decimal::from_str("100100").unwrap(),
+            weight: Decimal::percent(30),
+            threshold: Decimal::percent(0),
+            slippage: Decimal::percent(1),
+        },
+        AllocationResponse {
+            denom: "eth-usdc".to_string(),
+            swap_contract: None,
+            balance: Uint128::zero(),
+            price: Decimal::from_str("1.001").unwrap(),
+            weight: Decimal::percent(40),
+            threshold: Decimal::percent(0),
+            slippage: Decimal::percent(1),
+        },
+        AllocationResponse {
+            denom: "eth-eth".to_string(),
+            swap_contract: Some(eth_eth_swap.address.to_string()),
+            balance: Uint128::zero(),
+            price: Decimal::from_str("2500").unwrap(),
+            weight: Decimal::percent(30),
+            threshold: Decimal::percent(0),
+            slippage: Decimal::percent(1),
+        },
     ];
-    expected_allocations.sort_by(|a, b| a.0.cmp(&b.0));
+    expected_allocations.sort_by(|a, b| a.denom.cmp(&b.denom));
     assert_eq!(
         actual_allocations, expected_allocations,
         "Allocations should reflect updated weights"

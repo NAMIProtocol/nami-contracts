@@ -81,12 +81,7 @@ impl MockNamiIndexNav {
         app: &mut RujiraApp,
         allocation: Vec<AssetAllocation<OracleConfig>>,
     ) -> anyhow::Result<AppResponse> {
-        app.wasm_sudo(
-            self.address.clone(),
-            &SudoMsg::UpdateAllocation {
-                target_allocation: allocation,
-            },
-        )
+        app.wasm_sudo(self.address.clone(), &SudoMsg::UpdateAllocation(allocation))
     }
 
     pub fn query_config(&self, app: &mut RujiraApp) -> StdResult<ConfigResponse> {
