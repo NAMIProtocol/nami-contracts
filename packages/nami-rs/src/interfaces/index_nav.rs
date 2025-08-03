@@ -51,19 +51,32 @@ pub struct ConfigResponse {
 
 #[cw_serde]
 pub struct VaultStatusResponse {
-    pub nav: Decimal,
+    // Redemption rate is the amount of quote denom per share
+    pub redemption_rate: Decimal,
+    // Total number of shares
     pub shares: Uint128,
-    pub total_value: Uint128,
+    // Total Net Asset Value of the vault
+    pub nav: Uint128,
+    // NAV per share
+    pub nav_per_share: Decimal,
+    // Allocation of each asset
     pub allocation: Vec<AllocationResponse>,
 }
 
 #[cw_serde]
 pub struct AllocationResponse {
+    // Denom of the asset
     pub denom: String,
+    // Swap contract of the asset
     pub swap_contract: Option<String>,
+    // Balance of the asset
     pub balance: Uint128,
+    // Price of the asset
     pub price: Decimal,
+    // Weight of the asset
     pub weight: Decimal,
+    // Threshold is the minimum price change required to trigger a rebalance
     pub threshold: Decimal,
+    // Slippage is the maximum price change allowed before a rebalance is triggered
     pub slippage: Decimal,
 }

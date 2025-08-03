@@ -102,7 +102,7 @@ fn base_lifecycle() {
 
     // Check status
     let status = test_env.index.query_status(&mut test_env.app).unwrap();
-    assert_eq!(status.nav, Decimal::from_str("1.001").unwrap());
+    assert_eq!(status.nav_per_share, Decimal::from_str("1.001").unwrap());
 
     // Prepare for run
     let owner = test_env.app.api().addr_make("owner");
@@ -167,9 +167,9 @@ fn base_lifecycle() {
 
     // Check status nav increase because btc oracle price is higher than swap price
     let status = test_env.index.query_status(&mut test_env.app).unwrap();
-    assert_eq!(status.nav, Decimal::from_str("1.026025").unwrap());
+    assert_eq!(status.nav_per_share, Decimal::from_str("1.026025").unwrap());
     assert_eq!(status.shares, Uint128::from(4_000_000u128));
-    assert_eq!(status.total_value, Uint128::from(4_104_100u128));
+    assert_eq!(status.nav, Uint128::from(4_104_100u128));
     assert_eq!(
         status.allocation,
         [
@@ -368,8 +368,8 @@ fn lifecycle() {
     let status = test_env.index.query_status(&mut test_env.app).unwrap();
     // NAV ~1.03290561911120767 due to rebalance, btc price, and 1% management fee over 1 year
     assert!(
-        status.nav > Decimal::from_str("1.03").unwrap()
-            && status.nav < Decimal::from_str("1.04").unwrap(),
+        status.nav_per_share > Decimal::from_str("1.03").unwrap()
+            && status.nav_per_share < Decimal::from_str("1.04").unwrap(),
         "NAV should be in expected range after fees and rebalance"
     );
 
@@ -820,7 +820,7 @@ fn base_lifecycle_with_base_denom() {
 
     // Check status
     let status = test_env.index.query_status(&mut test_env.app).unwrap();
-    assert_eq!(status.nav, Decimal::from_str("1.001").unwrap());
+    assert_eq!(status.nav_per_share, Decimal::from_str("1.001").unwrap());
 
     // Prepare for run
     let owner = test_env.app.api().addr_make("owner");
@@ -896,9 +896,9 @@ fn base_lifecycle_with_base_denom() {
 
     // Check status nav increase because btc oracle price is higher than swap price
     let status = test_env.index.query_status(&mut test_env.app).unwrap();
-    assert_eq!(status.nav, Decimal::from_str("1.001").unwrap());
+    assert_eq!(status.nav_per_share, Decimal::from_str("1.001").unwrap());
     assert_eq!(status.shares, Uint128::from(4_000_000u128));
-    assert_eq!(status.total_value, Uint128::from(4_004_000u128));
+    assert_eq!(status.nav, Uint128::from(4_004_000u128));
     assert_eq!(
         status.allocation,
         [
@@ -1715,7 +1715,7 @@ fn test_minting_receipt() {
 
     // Check NAV before deposit should always be the price of the quote denom if no rebalance or no time passed
     let status = index.query_status(&mut nami_app).unwrap();
-    assert_eq!(status.nav, Decimal::from_str("100100").unwrap());
+    assert_eq!(status.nav_per_share, Decimal::from_str("100100").unwrap());
 
     index
         .execute_deposit(&mut nami_app, "user", coins(50u128, "btc-btc"))
@@ -1723,7 +1723,7 @@ fn test_minting_receipt() {
 
     // Check NAV after deposit should always be the price of the quote denom if no rebalance or no time passed
     let status = index.query_status(&mut nami_app).unwrap();
-    assert_eq!(status.nav, Decimal::from_str("100100").unwrap());
+    assert_eq!(status.nav_per_share, Decimal::from_str("100100").unwrap());
 
     // total shares should be 50
     assert_eq!(status.shares, Uint128::from(50u128));
@@ -1742,9 +1742,9 @@ fn test_minting_receipt() {
 
     // Check NAV after deposit should stay always be the price of the quote denom if no rebalance or no time passed
     let status = index.query_status(&mut nami_app).unwrap();
-    assert_eq!(status.nav, Decimal::from_str("100100").unwrap());
+    assert_eq!(status.nav_per_share, Decimal::from_str("100100").unwrap());
     // total value should be 100 * 100100 = 10010000
-    assert_eq!(status.total_value, Uint128::from(10_010_000u128));
+    assert_eq!(status.nav, Uint128::from(10_010_000u128));
 
     // total shares should be 100
     assert_eq!(status.shares, Uint128::from(100u128));
@@ -1776,11 +1776,11 @@ fn test_minting_receipt() {
     // 50 btc * 100_100 = 5_005_000 usd
     // Total value = 5_010_005 + 5_005_000 = 10_015_005 usd
     let status = index.query_status(&mut nami_app).unwrap();
-    assert_eq!(status.total_value, Uint128::from(10_015_005u128));
+    assert_eq!(status.nav, Uint128::from(10_015_005u128));
     assert_eq!(status.shares, Uint128::from(100u128));
 
     // NAV should be 10_015_005 / 100 = 100_150.05
-    assert_eq!(status.nav, Decimal::from_str("100150.05").unwrap());
+    assert_eq!(status.nav_per_share, Decimal::from_str("100150.05").unwrap());
 
     // New deposit
     index
@@ -1809,7 +1809,7 @@ fn test_minting_receipt() {
     // NAV should be 15_020_005 / 149 = 100_805.402684563758389261
     // increase of nav due to the rounding floor
     assert_eq!(
-        status.nav,
+        status.nav_per_share,
         Decimal::from_str("100805.402684563758389261").unwrap()
     );
 
@@ -1818,7 +1818,7 @@ fn test_minting_receipt() {
         .checked_mul(Decimal::from_str("100805.402684563758389261").unwrap())
         .unwrap()
         .to_uint_floor();
-    assert_eq!(total, status.total_value);
+    assert_eq!(total, status.nav);
 }
 
 #[test]
@@ -1926,6 +1926,6 @@ fn edge_case_withdraw_all() {
     // Check status (NAV should go back to 1,001, share should be 0)
     let status = test_env.index.query_status(&mut test_env.app).unwrap();
     println!("status: {:#?}", status);
-    assert_eq!(status.nav, Decimal::from_str("1.001").unwrap());
+    assert_eq!(status.nav_per_share, Decimal::from_str("1.001").unwrap());
     assert_eq!(status.shares, Uint128::zero());
 }

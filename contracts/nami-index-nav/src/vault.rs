@@ -291,12 +291,14 @@ impl<'a> Vault<'a> {
         storage: &dyn Storage,
         shares: Uint128,
     ) -> Result<VaultStatusResponse, ContractError> {
-        let nav = self.nav(storage, None, shares)?;
-        let total_value = nav
+        let nav_per_share = self.nav(storage, None, shares)?;
+        let nav = nav_per_share
             .checked_mul(Decimal::from_ratio(shares, Uint128::one()))?
             .to_uint_floor();
 
         let (base, others) = self.load_allocations(storage)?;
+        let (_, quote_price, _) = base.snapshot(&self.address, self.querier)?;
+        let redemption_rate = nav_per_share.checked_div(quote_price)?;
 
         let allocation = others
             .into_iter()
@@ -318,7 +320,8 @@ impl<'a> Vault<'a> {
         Ok(VaultStatusResponse {
             nav,
             shares,
-            total_value,
+            nav_per_share,
+            redemption_rate,
             allocation,
         })
     }
