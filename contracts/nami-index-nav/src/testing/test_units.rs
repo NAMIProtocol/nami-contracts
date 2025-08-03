@@ -1818,3 +1818,112 @@ fn test_minting_receipt() {
         .to_uint_floor();
     assert_eq!(total, status.total_value);
 }
+
+#[test]
+fn edge_case_withdraw_all() {
+    // Initialize user balances
+    let balances = vec![
+        ("user", vec![coin(10_000_000_000, "eth-usdc")]),
+        (
+            "owner",
+            vec![
+                coin(100_000_000_000, "eth-usdc"),
+                coin(100_000_000_000, "btc-btc"),
+                coin(100_000_000_000, "eth-eth"),
+            ],
+        ),
+    ];
+    let mut test_env = index::setup(
+        balances,
+        "eth-usdc".to_string(),
+        vec![
+            (
+                "btc-btc".to_string(),
+                Decimal::percent(50),
+                Decimal::percent(0),
+                Decimal::percent(25),
+            ),
+            (
+                "eth-usdc".to_string(),
+                Decimal::percent(50),
+                Decimal::percent(0),
+                Decimal::percent(25),
+            ),
+        ],
+        None,
+        None,
+        "quote",
+    )
+    .unwrap();
+    let rcpt_denom = format!("x/nami-index-nav-{}-rcpt", test_env.index.address);
+    let fee_collector_addr = test_env.app.api().addr_make("fee_collector").to_string();
+
+    // Successful deposit
+    let res = test_env
+        .index
+        .execute_deposit(&mut test_env.app, "user", coins(5_000_000u128, "eth-usdc"))
+        .unwrap();
+    res.assert_event(&Event::new("wasm-nami-index-nav/deposit"));
+    res.assert_event(&Event::new("mint").add_attributes(vec![("amount", "5000000".to_string())]));
+
+    // Check contract balances
+    let usdc_balance =
+        test_env
+            .app
+            .query_balance(&test_env.index.address.as_str(), "eth-usdc", false);
+    let btc_balance =
+        test_env
+            .app
+            .query_balance(&test_env.index.address.as_str(), "btc-btc", false);
+    assert_eq!(usdc_balance, Uint128::from(5_000_000u128));
+    assert_eq!(btc_balance, Uint128::zero());
+
+    // Check receipt balance for user
+    let rcpt_balance = test_env.app.query_balance("user", &rcpt_denom, true);
+    assert_eq!(rcpt_balance, Uint128::from(5_000_000u128));
+
+    // Rebalance to allocate 50% to btc-btc
+    let owner = test_env.app.api().addr_make("owner");
+    let fair_price_btc = Decimal::from_str("100100").unwrap();
+    for (_denom, mock_fin) in &test_env.swaps {
+        mock_fin
+            .populate_orderbook(
+                &mut test_env.app,
+                &owner,
+                vec![
+                    coin(1_000_000_000, "eth-usdc"),
+                    coin(1_000_000_000, "btc-btc"),
+                    coin(1_000_000_000, "eth-eth"),
+                ],
+                fair_price_btc,
+                &[1u64, 2u64, 3u64],
+                Uint128::from(10_000_000u128),
+            )
+            .unwrap();
+    }
+    let res = test_env
+        .index
+        .execute_run(&mut test_env.app, "user")
+        .unwrap();
+    res.assert_event(&Event::new("wasm-nami-index-nav/run"));
+
+    // Test withdrawal all
+    let res = test_env
+        .index
+        .execute_withdraw(
+            &mut test_env.app,
+            "user",
+            coins(5_000_000, rcpt_denom.clone()),
+            None,
+        )
+        .unwrap();
+
+    res.assert_event(&Event::new("wasm-nami-index-nav/withdraw"));
+    res.assert_event(&Event::new("burn"));
+
+    // Check status (NAV should go back to 1,001, share should be 0)
+    let status = test_env.index.query_status(&mut test_env.app).unwrap();
+    println!("status: {:#?}", status);
+    assert_eq!(status.nav, Decimal::from_str("1.001").unwrap());
+    assert_eq!(status.shares, Uint128::zero());
+}

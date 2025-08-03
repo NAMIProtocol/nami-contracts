@@ -244,7 +244,12 @@ impl<'a> Vault<'a> {
             to_address: sender.to_string(),
         }
         .into()];
-        let remaining = amount.checked_sub(send_quote)?;
+
+        // remaining must be in usd beacuse the swap_msg uses the oracle price in usd to calculate the swap amount
+        let remaining = Decimal::from_ratio(amount.checked_sub(send_quote)?, Uint128::one())
+            .checked_mul(quote_price)?
+            .to_uint_floor();
+
         if remaining.is_zero() {
             ensure!(send_quote >= min_amount, ContractError::SlippageExceeded {});
             return Ok(msgs);
