@@ -229,13 +229,14 @@ impl<'a> Vault<'a> {
         let (quote, others) = self.load_allocations(storage)?;
         let (quote_bal, quote_price, _) = quote.snapshot(&self.address, self.querier)?;
         let slip = slippage.unwrap_or(Decimal::one());
-        let min_amount = Decimal::from_ratio(value, Uint128::one())
-            .checked_mul(Decimal::one().checked_sub(slip)?)
-            .unwrap_or_default()
-            .to_uint_floor();
 
         let amount = Decimal::from_ratio(value, Uint128::one())
             .checked_div(quote_price)?
+            .to_uint_floor();
+
+        let min_amount = Decimal::from_ratio(amount, Uint128::one())
+            .checked_mul(Decimal::one().checked_sub(slip)?)
+            .unwrap_or_default()
             .to_uint_floor();
 
         let send_quote = amount.min(quote_bal);
@@ -256,7 +257,7 @@ impl<'a> Vault<'a> {
         }
 
         let total_weight = others.iter().map(|a| a.weight).sum::<Decimal>();
-        let max_cost = value.checked_sub(min_amount)?;
+        let max_cost = amount.checked_sub(min_amount)?;
 
         let (swap_msgs, _) = others.into_iter().try_fold(
             (Vec::new(), remaining),

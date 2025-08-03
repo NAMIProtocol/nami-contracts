@@ -302,15 +302,16 @@ fn lifecycle() {
     let res = test_env.index.execute_withdraw(
         &mut test_env.app,
         "user",
-        coins(1_000_000, rcpt_denom.clone()),
+        coins(5_000_000, rcpt_denom.clone()),
         Some(Decimal::from_str("0.0000001").unwrap()),
     );
     assert!(res.is_err());
+    // slippage error in the fin swap
     assert!(res
         .unwrap_err()
         .root_cause()
         .to_string()
-        .contains("SlippageExceeded"));
+        .contains("InsufficientReturn"));
 
     // Successful withdraw with transaction fee
     let withdraw_rcpt_amount = Uint128::from(1_000_000u128);
@@ -1044,11 +1045,12 @@ fn test_slippage_scenarios() {
     );
 
     // 0.0001% slippage - should fail
+    //  use a big amount to make sure the slippage is triggered when the swap is executed
     let tight_slippage = Decimal::from_str("0.000001").unwrap();
     let res = test_env.index.execute_withdraw(
         &mut test_env.app,
         "user",
-        coins(withdraw_amount.u128(), rcpt_denom.clone()),
+        coins(4_000_000u128, rcpt_denom.clone()),
         Some(tight_slippage),
     );
     assert!(res.is_err());
@@ -1056,13 +1058,13 @@ fn test_slippage_scenarios() {
         .unwrap_err()
         .root_cause()
         .to_string()
-        .contains("SlippageExceeded"));
+        .contains("InsufficientReturn"));
 
     // 0 slippage - should fail
     let res = test_env.index.execute_withdraw(
         &mut test_env.app,
         "user",
-        coins(withdraw_amount.u128(), rcpt_denom.clone()),
+        coins(4_000_000u128, rcpt_denom.clone()),
         Some(Decimal::zero()),
     );
     assert!(res.is_err());
@@ -1070,7 +1072,7 @@ fn test_slippage_scenarios() {
         .unwrap_err()
         .root_cause()
         .to_string()
-        .contains("SlippageExceeded"));
+        .contains("InsufficientReturn"));
 
     // 0.1% slippage
     let small_slippage = Decimal::from_str("0.001").unwrap();
