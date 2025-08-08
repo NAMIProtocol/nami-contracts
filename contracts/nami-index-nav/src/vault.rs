@@ -257,6 +257,7 @@ impl<'a> Vault<'a> {
         }
 
         let total_weight = others.iter().map(|a| a.weight).sum::<Decimal>();
+        // max_cost is the amount of quote that can be spent to withdraw the remaining amount
         let max_cost = amount.checked_sub(min_amount)?;
 
         let (swap_msgs, _) = others.into_iter().try_fold(
@@ -270,10 +271,18 @@ impl<'a> Vault<'a> {
                     return Ok((msgs, rem));
                 }
 
+                // convert the amt in quote to build the correct min_return
+                let amt_in_quote = Decimal::from_ratio(amt, Uint128::one())
+                    .checked_div(quote_price)?
+                    .to_uint_floor();
+
                 let alloc_max = Decimal::from_ratio(max_cost, Uint128::one())
                     .checked_mul(share)?
                     .to_uint_floor();
-                let min_return = (amt > alloc_max).then(|| amt.checked_sub(alloc_max).unwrap());
+
+                // min return should be in quote because fin needs it in the receive denom
+                let min_return = (amt_in_quote > alloc_max)
+                    .then(|| amt_in_quote.checked_sub(alloc_max).unwrap());
 
                 msgs.push(alloc.swap_msg(&self.address, amt, &sender, self.querier, min_return)?);
 
