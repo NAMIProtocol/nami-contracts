@@ -1,6 +1,6 @@
 [package]
 name = "nami-index-nav"
-version = "1.0.1"
+version = "1.0.2"
 authors = []
 edition = { workspace = true }
 
@@ -14,7 +14,7 @@ auditors = [
     "Halborn"
 ]
 docs = "https://docs.rujira.network/products/ruji-index"
-commit = "0e1f2ea4ca9d8a7130d13b0de5c0d4914154c1a0"
+commit = "6f9042395d88b0edd2b04370190d5a27ab0e2771"
 deployers = [
     "thor1zjwanvezcjp6hefgt6vqfnrrdm8yj9za3s8ss0"
 ]
